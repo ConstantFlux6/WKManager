@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WK Submissions</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="module" src="common.js"></script>
+  <script type="module" src="submissions.js"></script>
+</head>
+<body>
+  <nav class="tabs">
+    <a class="tab-button active" href="submissions.html">Submissions</a>
+    <a class="tab-button" href="summaries.html">Summaries</a>
+    <a class="tab-button" href="shift1.html">Shift 1</a>
+    <a class="tab-button" href="shift2.html">Shift 2</a>
+  </nav>
+
+  <h1>WK User Submissions</h1>
+  <div id="submissions" class="section">
+    <div id="mobileSort" style="text-align:center; margin-bottom:1rem;">
+      <label for="sortSelect">Sort by:</label>
+      <select id="sortSelect">
+        <option value="0">Name</option>
+        <option value="1">Alliance</option>
+        <option value="2">Troop Type</option>
+        <option value="3">Tier</option>
+        <option value="4">March Size</option>
+        <option value="5">Rally Size</option>
+        <option value="7">Shift</option>
+        <option value="8">Timestamp</option>
+      </select>
+    </div>
+    <div id="syncInfo">Loading...</div>
+    <div id="loading" class="spinner"></div>
+    <div id="exportBtns" style="display:none;">
+      Export:
+      <span onclick="exportData('json')">JSON</span> /
+      <span onclick="exportData('csv')">CSV</span>
+    </div>
+    <table id="submissionsTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Alliance</th>
+          <th>Troop Type</th>
+          <th>Tier</th>
+          <th>March Size</th>
+          <th>Rally Size</th>
+          <th>Total</th>
+          <th>Shift</th>
+          <th>Timestamp</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div id="toast" class="toast"></div>
+</body>
+</html>
