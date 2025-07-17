@@ -3,6 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/fireba
 import {
   getFirestore, collection, getDocs
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+import { assignColor } from "./common.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC0Rh4J4NwhFItII8knxp1hnmtH9rCHttA",
@@ -44,10 +45,11 @@ function renderSummaries(data) {
     if (alliance) allianceCounts[alliance] = (allianceCounts[alliance] || 0) + 1;
   }
 
-  const createGroup = (title, entries) => {
+  const createGroup = (title, entries, category = null) => {
     let html = `<div class="partition-title">${title}</div><div class="summary-subgrid">`;
     for (const [label, count] of entries) {
-      html += `<div class="summary-item"><h3>${label}</h3><div>${count}</div></div>`;
+      const colorStyle = category ? `style=\"color:${assignColor(label, category)}\"` : "";
+      html += `<div class="summary-item"><h3 ${colorStyle}>${label}</h3><div>${count}</div></div>`;
     }
     html += `</div>`;
     return html;
@@ -55,11 +57,11 @@ function renderSummaries(data) {
 
   const tierSection = createGroup("Total Troop Tier", Object.entries(tierCounts));
   const typeSection = [
-    createGroup("Fighters", [["Total", typeCounts.Fighter]]),
-    createGroup("Shooters", [["Total", typeCounts.Shooter]]),
-    createGroup("Riders", [["Total", typeCounts.Rider]])
+    createGroup("Fighters", [["Total", typeCounts.Fighter]], "troop"),
+    createGroup("Shooters", [["Total", typeCounts.Shooter]], "troop"),
+    createGroup("Riders", [["Total", typeCounts.Rider]], "troop")
   ].join("");
-  const allianceSection = createGroup("Alliance Count", Object.entries(allianceCounts));
+  const allianceSection = createGroup("Alliance Count", Object.entries(allianceCounts), "alliance");
 
   grid.innerHTML = tierSection + typeSection + allianceSection;
 }

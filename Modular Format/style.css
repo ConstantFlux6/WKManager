@@ -52,15 +52,26 @@ h1, h2, h3 {
 }
 
 table {
+  table-layout: fixed;
   width: 100%;
   border-collapse: collapse;
   margin-top: 1rem;
 }
 
-th, td {
+th {
   padding: 0.5rem;
   border: 1px solid var(--border);
   text-align: center;
+}
+
+td {
+  border: 1px solid var(--border);
+  text-align: center;
+  padding: 4px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 input, select {
@@ -68,6 +79,13 @@ input, select {
   color: var(--fg);
   border: 1px solid var(--border);
   padding: 0.25rem 0.5rem;
+}
+
+input[disabled] {
+  width: 100%;
+  min-width: 0;
+  padding: 4px;
+  box-sizing: border-box;
 }
 
 .Fighter {
@@ -93,4 +111,34 @@ input, select {
   border-radius: 0.5rem;
   display: none;
   z-index: 999;
+}
+
+#summaryGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.summary-subgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.summary-item {
+  background: var(--section);
+  padding: 0.75rem;
+  text-align: center;
+  border-radius: 8px;
+  color: var(--fg);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+.partition-title {
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.25rem;
 }

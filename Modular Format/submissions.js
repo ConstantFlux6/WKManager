@@ -53,6 +53,11 @@ async function loadSubmissions() {
     const inputs = tr.querySelectorAll("input");
     const editBtn = tr.querySelector(".edit-btn");
     let deleteBtn;
+    
+    const allianceInput = inputs[1];
+    const troopTypeInput = inputs[2];
+    if (allianceInput) allianceInput.style.color = assignColor(allianceInput.value, 'alliance');
+    if (troopTypeInput) troopTypeInput.style.color = assignColor(troopTypeInput.value, 'troop');
 
     editBtn.addEventListener("click", async () => {
       const isEditing = editBtn.textContent === "Save";
