@@ -56,7 +56,7 @@ async function loadShiftData() {
   tbody.innerHTML = "";
   captainCount = 0;
 
-  const filtered = data.filter(d => d.shift === "start" || d.shift === "start till end");
+  const filtered = data.filter(d => d.shift === "Start" || d.shift === "Start till End");
 
   for (const row of filtered) {
     const total = (+row.marchSize || 0) + (+row.rallySize || 0);
