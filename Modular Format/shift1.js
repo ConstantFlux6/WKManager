@@ -1,7 +1,7 @@
 // shift1.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import {
-  getFirestore, collection, getDocs, doc, updateDoc
+  getFirestore, collection, getDocs, doc, updateDoc, getDoc
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 import { showToast, getCurrentWK } from "./common.js";
 
@@ -28,10 +28,15 @@ async function loadShiftData() {
     const s = p.shift?.toLowerCase();
     return s === 'start' || s === 'start till end';
   });
-  renderTable(shiftPlayers);
+
+  const wkDate = getCurrentWK();
+  const saved = await getDoc(doc(db, "shift1", wkDate));
+  const savedAssignments = saved.exists() ? saved.data().assignments : [];
+
+  renderTable(shiftPlayers, savedAssignments);
 }
 
-function renderTable(players) {
+function renderTable(players, savedAssignments) {
   const container = document.getElementById("shift1Table");
   container.innerHTML = "";
 
@@ -74,23 +79,28 @@ function renderTable(players) {
     data.forEach(player => {
       const tr = document.createElement("tr");
       tr.dataset.id = player.id;
+
+      const saved = savedAssignments.find(a => a.id === player.id) || {};
+      const isChecked = key => saved[key] ? "checked" : "";
+      const selected = val => saved.assignedTo === val ? "selected" : "";
+
       tr.innerHTML = `
         <td>${player.name}</td>
         <td>${player.troopType}</td>
         <td>${player.troopTier}</td>
         <td>${player.marchSize}</td>
         <td>${player.rallySize}</td>
-        <td><input type="checkbox" class="captain" /></td>
-        <td><input type="checkbox" class="backup" /></td>
-        <td><input type="checkbox" class="joiner" /></td>
+        <td><input type="checkbox" class="captain" ${isChecked("captain")} /></td>
+        <td><input type="checkbox" class="backup" ${isChecked("backup")} /></td>
+        <td><input type="checkbox" class="joiner" ${isChecked("joiner")} /></td>
         <td>
           <select>
-            <option value="">Unassigned</option>
-            <option value="Hub">Hub</option>
-            <option value="North">North</option>
-            <option value="East">East</option>
-            <option value="South">South</option>
-            <option value="West">West</option>
+            <option value="" ${selected("")}>Unassigned</option>
+            <option value="Hub" ${selected("Hub")}>Hub</option>
+            <option value="North" ${selected("North")}>North</option>
+            <option value="East" ${selected("East")}>East</option>
+            <option value="South" ${selected("South")}>South</option>
+            <option value="West" ${selected("West")}>West</option>
           </select>
         </td>
       `;
