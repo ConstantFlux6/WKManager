@@ -18,8 +18,31 @@
 
   <h1 style="text-align:center">Shift 2 Assignment</h1>
 
-  <div class="section">
+  <div class="controls">
+    <label for="sortBy">Sort By:</label>
+    <select id="sortBy">
+      <option value="name">Name</option>
+      <option value="alliance">Alliance</option>
+      <option value="troopType">Troop</option>
+      <option value="troopTier">Tier</option>
+      <option value="marchSize">March</option>
+      <option value="rallySize">Rally</option>
+    </select>
+
+    <button id="toggleSortDir" class="toggle-button">↑</button>
+
+    <label for="troopFilter">Only show:</label>
+    <select id="troopFilter">
+      <option value="all">All Troop Types</option>
+      <option value="Fighter">Fighter</option>
+      <option value="Shooter">Shooter</option>
+      <option value="Rider">Rider</option>
+    </select>
+
     <button id="saveShift2" class="save-button">Save</button>
+  </div>
+
+  <div class="section">
     <table id="shiftTable">
       <thead>
         <tr>
@@ -41,5 +64,11 @@
   </div>
 
   <div id="toast" class="toast"></div>
+
+  <script>
+    document.getElementById("troopFilter").addEventListener("change", () => {
+      window.dispatchEvent(new Event("reloadShift2"));
+    });
+  </script>
 </body>
 </html>

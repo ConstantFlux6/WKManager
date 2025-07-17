@@ -17,34 +17,27 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 let captainCount = 0;
+let fullData = [];
+let assigned = {};
 
 window.addEventListener("DOMContentLoaded", () => {
   loadShiftData();
   document.getElementById("saveShift1").addEventListener("click", saveShiftData);
+  document.getElementById("sortBy").addEventListener("change", loadShiftData);
+  document.getElementById("toggleSortDir").addEventListener("click", () => {
+    const btn = document.getElementById("toggleSortDir");
+    btn.textContent = btn.textContent.includes("↓") ? "↑" : "↓";
+    loadShiftData();
+  });
+  window.addEventListener("reloadShift1", loadShiftData);
 });
 
 async function loadShiftData() {
-  let data = [];
-
-  try {
-    const cached = localStorage.getItem("cachedSubmissions");
-    if (cached) {
-      data = JSON.parse(cached);
-      console.log("Loaded submissions from localStorage");
-    } else if (window.fullData && Array.isArray(window.fullData)) {
-      data = window.fullData;
-      console.log("Loaded submissions from window.fullData");
-    } else {
-      const snap = await getDocs(collection(db, "submissions"));
-      data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      console.log("Fetched submissions from Firestore");
-    }
-  } catch (err) {
-    console.error("Failed to load submissions", err);
-    return;
+  if (!fullData.length) {
+    const snap = await getDocs(collection(db, "submissions"));
+    fullData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   }
 
-  let assigned = {};
   try {
     const assignSnap = await getDoc(doc(db, "assignments", "shift1"));
     assigned = assignSnap.exists() ? Object.fromEntries(assignSnap.data().players.map(p => [p.name, p])) : {};
@@ -56,12 +49,28 @@ async function loadShiftData() {
   tbody.innerHTML = "";
   captainCount = 0;
 
-  const filtered = data.filter(d => d.shift === "Start" || d.shift === "Start till End");
+  const filterValue = document.getElementById("troopFilter").value;
+  const filtered = fullData.filter(d => {
+    const shiftMatch = d.shift === "Start" || d.shift === "Start till End";
+    const typeMatch = filterValue === "all" || d.troopType === filterValue;
+    return shiftMatch && typeMatch;
+  });
+
+  const sortKey = document.getElementById("sortBy").value;
+  const desc = document.getElementById("toggleSortDir").textContent.includes("↑");
+
+  filtered.sort((a, b) => {
+    const aVal = a[sortKey] || "";
+    const bVal = b[sortKey] || "";
+    const aNum = +aVal;
+    const bNum = +bVal;
+    if (!isNaN(aNum) && !isNaN(bNum)) return desc ? bNum - aNum : aNum - bNum;
+    return desc ? bVal.toString().localeCompare(aVal) : aVal.toString().localeCompare(bVal);
+  });
 
   for (const row of filtered) {
     const total = (+row.marchSize || 0) + (+row.rallySize || 0);
     const prev = assigned[row.name] || {};
-
     const tr = document.createElement("tr");
     const assignedTurret = prev.turret || "";
 
