@@ -62,3 +62,89 @@ function renderTable(players, savedAssignments) {
         <th>March</th>
         <th>Rally</th>
         <th>Captain</th>
+        <th>Backup</th>
+        <th>Joiner</th>
+        <th>Assigned To</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  container.appendChild(table);
+
+  const tbody = table.querySelector("tbody");
+  let currentPlayers = [...players];
+
+  function populateRows(data) {
+    tbody.innerHTML = "";
+    data.forEach(player => {
+      const tr = document.createElement("tr");
+      tr.dataset.id = player.id;
+
+      const saved = savedAssignments.find(a => a.id === player.id) || {};
+      const isChecked = key => saved[key] ? "checked" : "";
+      const selected = val => saved.assignedTo === val ? "selected" : "";
+
+      tr.innerHTML = `
+        <td>${player.name}</td>
+        <td>${player.troopType}</td>
+        <td>${player.troopTier}</td>
+        <td>${player.marchSize}</td>
+        <td>${player.rallySize}</td>
+        <td><input type="checkbox" class="captain" ${isChecked("captain")} /></td>
+        <td><input type="checkbox" class="backup" ${isChecked("backup")} /></td>
+        <td><input type="checkbox" class="joiner" ${isChecked("joiner")} /></td>
+        <td>
+          <select>
+            <option value="" ${selected("")}>Unassigned</option>
+            <option value="Hub" ${selected("Hub")}>Hub</option>
+            <option value="North" ${selected("North")}>North</option>
+            <option value="East" ${selected("East")}>East</option>
+            <option value="South" ${selected("South")}>South</option>
+            <option value="West" ${selected("West")}>West</option>
+          </select>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function sortAndRender(mode) {
+    const sorted = [...currentPlayers].sort((a, b) => {
+      if (mode === "name") return a.name.localeCompare(b.name);
+      return (b.rallySize || 0) - (a.rallySize || 0);
+    });
+    populateRows(sorted);
+  }
+
+  sortAndRender("rallySize");
+
+  document.getElementById("sortMode").addEventListener("change", e => {
+    sortAndRender(e.target.value);
+  });
+
+  document.getElementById("saveShift").addEventListener("click", async () => {
+    const rows = tbody.querySelectorAll("tr");
+    const shift2Assignments = [];
+
+    rows.forEach(row => {
+      const name = row.children[0].textContent;
+      const id = row.dataset.id;
+      const assignedTo = row.querySelector("select").value;
+      const captain = row.querySelector(".captain").checked;
+      const backup = row.querySelector(".backup").checked;
+      const joiner = row.querySelector(".joiner").checked;
+
+      shift2Assignments.push({ id, name, assignedTo, captain, backup, joiner });
+    });
+
+    const wkDate = getCurrentWK();
+    const docRef = doc(db, "shift2", wkDate);
+    try {
+      await updateDoc(docRef, { assignments: shift2Assignments });
+      showToast("Shift 1 saved.");
+    } catch (err) {
+      console.error(err);
+      showToast("Error saving shift.");
+    }
+  });
+}

@@ -1,4 +1,4 @@
-
+// common.js
 export const assignColor = (() => {
   const troopColors = {
     Fighter: '#ff6b6b',
