@@ -3,7 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/fireba
 import {
   getFirestore, collection, getDocs, doc, updateDoc
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
-import { showToast } from "./common.js";
+import { showToast, getCurrentWK } from "./common.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC0Rh4J4NwhFItII8knxp1hnmtH9rCHttA",
@@ -73,6 +73,7 @@ function renderTable(players) {
     tbody.innerHTML = "";
     data.forEach(player => {
       const tr = document.createElement("tr");
+      tr.dataset.id = player.id;
       tr.innerHTML = `
         <td>${player.name}</td>
         <td>${player.troopType}</td>
@@ -111,7 +112,29 @@ function renderTable(players) {
     sortAndRender(e.target.value);
   });
 
-  document.getElementById("saveShift").addEventListener("click", () => {
-    showToast("Save not yet implemented.");
+  document.getElementById("saveShift").addEventListener("click", async () => {
+    const rows = tbody.querySelectorAll("tr");
+    const shift2Assignments = [];
+
+    rows.forEach(row => {
+      const name = row.children[0].textContent;
+      const id = row.dataset.id;
+      const assignedTo = row.querySelector("select").value;
+      const captain = row.querySelector(".captain").checked;
+      const backup = row.querySelector(".backup").checked;
+      const joiner = row.querySelector(".joiner").checked;
+
+      shift2Assignments.push({ id, name, assignedTo, captain, backup, joiner });
+    });
+
+    const wkDate = getCurrentWK();
+    const docRef = doc(db, "shift2", wkDate);
+    try {
+      await updateDoc(docRef, { assignments: shift2Assignments });
+      showToast("Shift 2 saved.");
+    } catch (err) {
+      console.error(err);
+      showToast("Error saving shift.");
+    }
   });
 }
