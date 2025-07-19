@@ -110,11 +110,17 @@ function setupSort() {
     const tbody = document.querySelector("#submissionsTable tbody");
     const rows = Array.from(tbody.querySelectorAll("tr"));
 
+    const tierOrder = { T9: 9, T10: 10, T11: 11, T12: 12, T13: 13 };
+
     const sorted = rows.sort((a, b) => {
       const aInput = a.children[idx]?.querySelector("input");
       const bInput = b.children[idx]?.querySelector("input");
       const aVal = aInput ? aInput.value.trim() : a.children[idx]?.textContent.trim();
       const bVal = bInput ? bInput.value.trim() : b.children[idx]?.textContent.trim();
+
+      if (idx === 3) { // Troop Tier column
+        return (tierOrder[bVal] || 0) - (tierOrder[aVal] || 0);
+      }
 
       const isNumber = !isNaN(aVal) && !isNaN(bVal);
       return isNumber ? parseFloat(bVal) - parseFloat(aVal) : aVal.localeCompare(bVal);
@@ -124,3 +130,4 @@ function setupSort() {
     sorted.forEach(row => tbody.appendChild(row));
   });
 }
+

@@ -31,7 +31,7 @@ function renderSummaries(data) {
   const grid = document.getElementById("summaryGrid");
   if (!grid) return;
 
-  const tierCounts = {};
+  const tierCounts = { T9: 0, T10: 0, T11: 0, T12: 0, T13: 0,};
   const typeCounts = { Fighter: 0, Shooter: 0, Rider: 0 };
   const allianceCounts = {};
 
@@ -56,11 +56,7 @@ function renderSummaries(data) {
   };
 
   const tierSection = createGroup("Total Troop Tier", Object.entries(tierCounts));
-  const typeSection = [
-    createGroup("Fighters", [["Total", typeCounts.Fighter]], "troop"),
-    createGroup("Shooters", [["Total", typeCounts.Shooter]], "troop"),
-    createGroup("Riders", [["Total", typeCounts.Rider]], "troop")
-  ].join("");
+  const typeSection = createGroup("Troop Types", Object.entries(typeCounts));
   const allianceSection = createGroup("Alliance Count", Object.entries(allianceCounts), "alliance");
 
   grid.innerHTML = tierSection + typeSection + allianceSection;
