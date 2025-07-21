@@ -12,67 +12,77 @@
   <nav class="tabs">
     <a class="tab-button" href="submissions.html">Submissions</a>
     <a class="tab-button" href="summaries.html">Summaries</a>
-    <a class="tab-button active" href="shift1.html">Shift 1</a>
-    <a class="tab-button" href="shift2.html">Shift 2</a>
+    <a class="tab-button active" href="shift1.html">Create 1st Shift</a>
+    <a class="tab-button" href="shift2.html">Create 2nd Shift</a>
   </nav>
 
   <h1 style="text-align:center">Shift 1 Assignment</h1>
 
-  <div class="controls">
-    <label for="sortBy">Sort By:</label>
-    <select id="sortBy">
-      <option value="name">Name</option>
-      <option value="alliance">Alliance</option>
-      <option value="troopType">Troop</option>
-      <option value="troopTier">Tier</option>
-      <option value="marchSize">March</option>
-      <option value="rallySize">Rally</option>
-    </select>
-
-    <button id="toggleSortDir" class="toggle-button">↑</button>
-
-    <label for="troopFilter">Only show:</label>
-    <select id="troopFilter">
-      <option value="all">All Troop Types</option>
-      <option value="Fighter">Fighter</option>
-      <option value="Shooter">Shooter</option>
-      <option value="Rider">Rider</option>
-    </select>
-
-    <button id="saveShift1" class="save-button">Save</button>
-  </div>
+  <div id="infoBar">0/5 Captain | 0/10 Backup | 0/? Joiner</div>
 
   <div class="section">
-    <table id="shiftTable">
+    <h2>Fighters</h2>
+    <table id="tableFighter">
       <thead>
         <tr>
           <th>Name</th>
           <th>Alliance</th>
-          <th>Troop Type</th>
+          <th>Type</th>
           <th>Tier</th>
           <th>March</th>
           <th>Rally</th>
           <th>Total</th>
           <th>Captain</th>
           <th>Backup</th>
-          <th>Joiner</th>
-          <th>Turret</th>
+          <th>Turret<br/>(Hub/N/E/S/W)</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <h2>Shooters</h2>
+    <table id="tableShooter">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Alliance</th>
+          <th>Type</th>
+          <th>Tier</th>
+          <th>March</th>
+          <th>Rally</th>
+          <th>Total</th>
+          <th>Captain</th>
+          <th>Backup</th>
+          <th>Turret<br/>(Hub/N/E/S/W)</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <h2>Riders</h2>
+    <table id="tableRider">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Alliance</th>
+          <th>Type</th>
+          <th>Tier</th>
+          <th>March</th>
+          <th>Rally</th>
+          <th>Total</th>
+          <th>Captain</th>
+          <th>Backup</th>
+          <th>Turret<br/>(Hub/N/E/S/W)</th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
   </div>
 
-  <td><input type="checkbox" class="captain" /></td>
-  <td><input type="checkbox" class="backup" /></td>
-  <td><input type="checkbox" class="joiner" /></td>
+  <div id="bottomBar">
+    <button id="saveShift1" class="save-button">Save</button>
+  </div>
 
   <div id="toast" class="toast"></div>
-
-    <script>
-    document.getElementById("troopFilter").addEventListener("change", () => {
-      window.dispatchEvent(new Event("reloadShift1"));
-    });
-  </script>
 </body>
 </html>

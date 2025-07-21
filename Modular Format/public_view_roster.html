@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>WK Public Roster</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Noto Sans', sans-serif;
+      background: #121212;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      text-align: center;
+      margin: 1rem 0;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin: 1rem 0;
+      justify-content: center;
+    }
+    .grid {
+      display: grid;
+      grid-template-areas: "north west hub east south";
+      grid-template-columns: repeat(5, 1fr);
+      gap: 1rem;
+      width: 100%;
+      max-width: 1200px;
+    }
+    .zone {
+      background: #1e1e1e;
+      padding: 1rem;
+      border-radius: 8px;
+    }
+    .zone h2 { text-align: center; }
+    .zone .label { font-weight: bold; margin-top: 0.5rem; display: block; }
+    .zone .value {
+      white-space: pre-wrap;
+      background: #2a2a2a;
+      padding: 0.5rem;
+      border-radius: 4px;
+      margin-bottom: 0.5rem;
+    }
+    .north { grid-area: north; }
+    .south { grid-area: south; }
+    .east  { grid-area: east;  }
+    .west  { grid-area: west;  }
+    .hub   { grid-area: hub;   }
+    @media (max-width: 768px) {
+      .grid {
+        grid-template-areas: "north" "west" "hub" "east" "south";
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>WK Roster Viewer</h1>
+  <div class="controls">
+    <button id="toggleView">Switch to Mobile View</button>
+    <button id="exportBtn">Export</button>
+  </div>
+  <div id="shift1Container"></div>
+  <div id="shift2Container"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+    import html2canvas from "https://cdn.skypack.dev/html2canvas";
+    import jsPDF from "https://cdn.skypack.dev/jspdf";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyC0Rh4J4NwhFItII8knxp1hnmtH9rCHttA",
+      authDomain: "pns-bulletin-board.firebaseapp.com",
+      projectId: "pns-bulletin-board",
+      storageBucket: "pns-bulletin-board.appspot.com",
+      messagingSenderId: "837041717725",
+      appId: "1:837041717725:web:b249384baf891d5447b634"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const docRef = doc(db, "roster", "turrets");
+    const zones = ["north", "south", "east", "west", "hub"];
+
+    const renderShift = (data, suffix, label) => {
+      const container = document.createElement("div");
+      const title = document.createElement("h2");
+      title.textContent = label;
+      container.appendChild(title);
+
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      zones.forEach(zone => {
+        const zoneDiv = document.createElement("div");
+        zoneDiv.className = `zone ${zone}`;
+        zoneDiv.innerHTML = `
+          <h2>${zone.charAt(0).toUpperCase() + zone.slice(1)}</h2>
+          <span class="label">Captain</span>
+          <div class="value">${data[`${zone}-captain${suffix}`] || ""}</div>
+          <span class="label">Type</span>
+          <div class="value">${data[`${zone}-type${suffix}`] || ""}</div>
+          <span class="label">Joiners</span>
+          <div class="value">${data[`${zone}-joiners${suffix}`] || ""}</div>
+        `;
+        grid.appendChild(zoneDiv);
+      });
+      container.appendChild(grid);
+      return container;
+    };
+
+    async function loadAndRender() {
+      const snap = await getDoc(docRef);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      document.getElementById("shift1Container").appendChild(renderShift(data, "", "Shift 1"));
+      document.getElementById("shift2Container").appendChild(renderShift(data, "-2", "Shift 2"));
+    }
+
+    loadAndRender();
+
+    document.getElementById("toggleView").addEventListener("click", () => {
+      document.body.classList.toggle("mobile-mode");
+    });
+
+    document.getElementById("exportBtn").addEventListener("click", () => {
+      const choice = prompt("Export which shift? Type: 1, 2, or both");
+      const exportEl = document.createElement("div");
+      if (choice === "1") exportEl.appendChild(document.getElementById("shift1Container").cloneNode(true));
+      else if (choice === "2") exportEl.appendChild(document.getElementById("shift2Container").cloneNode(true));
+      else if (choice === "both") {
+        exportEl.appendChild(document.getElementById("shift1Container").cloneNode(true));
+        exportEl.appendChild(document.getElementById("shift2Container").cloneNode(true));
+      } else return;
+
+      // PNG Export
+      html2canvas(exportEl).then(canvas => {
+        const link = document.createElement("a");
+        link.download = `roster_export.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+
+        // PDF Export
+        const pdf = new jsPDF();
+        pdf.addImage(canvas, 'PNG', 10, 10, 190, 0);
+        pdf.save("roster_export.pdf");
+      });
+
+      // CSV Export
+      const snap = document.getElementById(choice === "1" ? "shift1Container" : choice === "2" ? "shift2Container" : "shift1Container").cloneNode(true);
+      if (choice === "both") snap.appendChild(document.getElementById("shift2Container").cloneNode(true));
+      const rows = snap.querySelectorAll(".zone");
+      const csvRows = ["Shift,Zone,Captain,Type,Joiners"];
+      rows.forEach(zone => {
+        const shift = zone.closest("#shift2Container") ? "2" : "1";
+        const name = zone.querySelector("h2").textContent;
+        const captain = zone.querySelector(".value:nth-of-type(1)").textContent.replace(/\n/g, ' ');
+        const type = zone.querySelector(".value:nth-of-type(2)").textContent;
+        const joiners = zone.querySelector(".value:nth-of-type(3)").textContent.replace(/\n/g, ' ');
+        csvRows.push(`${shift},${name},${captain},${type},${joiners}`);
+      });
+      const csvBlob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
+      const csvLink = document.createElement("a");
+      csvLink.href = URL.createObjectURL(csvBlob);
+      csvLink.download = "roster_export.csv";
+      csvLink.click();
+    });
+  </script>
+</body>
+</html>

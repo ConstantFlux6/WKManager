@@ -1,4 +1,4 @@
-// shift1.js
+// shift1.js (cleaned)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import {
   getFirestore, collection, getDocs, setDoc, doc, getDoc
@@ -16,21 +16,41 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-let captainCount = 0;
 let fullData = [];
 let assigned = {};
 
 window.addEventListener("DOMContentLoaded", () => {
   loadShiftData();
   document.getElementById("saveShift1").addEventListener("click", saveShiftData);
-  document.getElementById("sortBy").addEventListener("change", loadShiftData);
-  document.getElementById("toggleSortDir").addEventListener("click", () => {
-    const btn = document.getElementById("toggleSortDir");
-    btn.textContent = btn.textContent.includes("↓") ? "↑" : "↓";
-    loadShiftData();
-  });
-  window.addEventListener("reloadShift1", loadShiftData);
 });
+
+function markSavedStatus(saved) {
+  const btn = document.getElementById("saveShift1");
+  if (!btn) return;
+  if (saved) {
+    btn.textContent = "Saved";
+    btn.classList.remove("save-pending");
+    btn.classList.add("save-complete");
+  } else {
+    btn.textContent = "Save Work";
+    btn.classList.remove("save-complete");
+    btn.classList.add("save-pending");
+  }
+}
+
+function updateInfoBar() {
+  const captains = document.querySelectorAll('.captain:checked').length;
+  const backups = document.querySelectorAll('.backup:checked').length;
+  const total = document.querySelectorAll('tbody tr').length;
+  const bar = document.getElementById('infoBar');
+  if (bar) {
+    bar.innerHTML = `
+      <span class="captain-count">${captains}/5 Captain</span> |
+      <span class="backup-count">${backups}/10 Backup</span> |
+      <span class="joiner-count">${total - 15}/${total - 15} Joiner</span>
+    `;
+  }
+}
 
 async function loadShiftData() {
   if (!fullData.length) {
@@ -45,99 +65,89 @@ async function loadShiftData() {
     console.warn("No previous assignments found.");
   }
 
-  const tbody = document.querySelector("#shiftTable tbody");
-  tbody.innerHTML = "";
-  captainCount = 0;
+  const grouped = {
+    Fighter: [],
+    Shooter: [],
+    Rider: []
+  };
 
-  const filterValue = document.getElementById("troopFilter").value;
-  const filtered = fullData.filter(d => {
-    const shiftMatch = d.shift === "Start" || d.shift === "Start till End";
-    const typeMatch = filterValue === "all" || d.troopType === filterValue;
-    return shiftMatch && typeMatch;
-  });
-
-  const sortKey = document.getElementById("sortBy").value;
-  const desc = document.getElementById("toggleSortDir").textContent.includes("↑");
-
-  filtered.sort((a, b) => {
-    const aVal = a[sortKey] || "";
-    const bVal = b[sortKey] || "";
-    const aNum = +aVal;
-    const bNum = +bVal;
-    if (!isNaN(aNum) && !isNaN(bNum)) return desc ? bNum - aNum : aNum - bNum;
-    return desc ? bVal.toString().localeCompare(aVal) : aVal.toString().localeCompare(bVal);
-  });
-
-  for (const row of filtered) {
-    const total = (+row.marchSize || 0) + (+row.rallySize || 0);
-    const prev = assigned[row.name] || {};
-    const tr = document.createElement("tr");
-    const assignedTurret = prev.turret || "";
-
-    tr.innerHTML = `
-      <td><input disabled value="${row.name}" /></td>
-      <td><input disabled value="${row.alliance}" style="color:${assignColor(row.alliance, 'alliance')}" /></td>
-      <td><input disabled value="${row.troopType}" style="color:${assignColor(row.troopType, 'troop')}" /></td>
-      <td><input disabled value="${row.troopTier}" /></td>
-      <td><input disabled value="${row.marchSize}" /></td>
-      <td><input disabled value="${row.rallySize}" /></td>
-      <td>${total}</td>
-      <td><input type="checkbox" class="captain" ${prev.captain ? "checked" : ""} /></td>
-      <td><input type="checkbox" class="backup" ${prev.backup ? "checked" : ""} /></td>
-      <td><input type="checkbox" class="joiner" ${prev.joiner ? "checked" : ""} /></td>
-      <td>
-        <select class="turretSelect">
-          <option value="" ${assignedTurret === "" ? "selected" : ""}></option>
-          <option value="Hub" ${assignedTurret === "Hub" ? "selected" : ""}>Hub</option>
-          <option value="North" ${assignedTurret === "North" ? "selected" : ""}>North</option>
-          <option value="East" ${assignedTurret === "East" ? "selected" : ""}>East</option>
-          <option value="South" ${assignedTurret === "South" ? "selected" : ""}>South</option>
-          <option value="West" ${assignedTurret === "West" ? "selected" : ""}>West</option>
-        </select>
-      </td>
-    `;
-
-    tbody.appendChild(tr);
-    if (prev.captain) captainCount++;
+  for (const row of fullData) {
+    const shiftMatch = row.shift === "Start" || row.shift === "Start till End";
+    if (grouped[row.troopType] && shiftMatch) grouped[row.troopType].push(row);
   }
 
-  document.querySelectorAll(".captain").forEach(cb => {
-    cb.addEventListener("change", () => {
-      captainCount += cb.checked ? 1 : -1;
-      if (captainCount > 5) {
-        cb.checked = false;
-        captainCount--;
-        showToast("Only 5 captains allowed");
+  Object.keys(grouped).forEach(type => {
+    grouped[type].sort((a, b) => (+b.rallySize || 0) - (+a.rallySize || 0));
+
+    const tbody = document.querySelector(`#table${type} tbody`);
+    tbody.innerHTML = "";
+
+    for (const row of grouped[type]) {
+      const total = (+row.marchSize || 0) + (+row.rallySize || 0);
+      const prev = assigned[row.name] || {};
+      const tr = document.createElement("tr");
+      const assignedTurret = prev.turret || "";
+
+      tr.innerHTML = `
+        <td><input disabled value="${row.name}" /></td>
+        <td><input disabled value="${row.alliance}" style="color:${assignColor(row.alliance, 'alliance')}" /></td>
+        <td><input disabled value="${row.troopType}" style="color:${assignColor(row.troopType, 'troop')}" /></td>
+        <td><input disabled value="${row.troopTier}" /></td>
+        <td><input disabled value="${row.marchSize}" /></td>
+        <td><input disabled value="${row.rallySize}" /></td>
+        <td>${total}</td>
+        <td><input type="checkbox" class="captain" ${prev.captain ? "checked" : ""} /></td>
+        <td><input type="checkbox" class="backup" ${prev.backup ? "checked" : ""} /></td>
+        <td>
+          <div class="turret-options">
+            ${["Hub", "North", "Eeast", "South", "West"].map(loc => `
+              <label><input type="checkbox" class="turretCheck" data-location="${loc}" 
+              ${assignedTurret === loc ? "checked" : ""}/> ${loc}</label>`).join(" ")}
+          </div>
+        </td>
+      `;
+
+      tbody.appendChild(tr);
+
+      const captainCb = tr.querySelector(".captain");
+      const backupCb = tr.querySelector(".backup");
+      const turretChecks = Array.from(tr.querySelectorAll(".turretCheck"));
+
+      function getCheckedTurret() {
+        const checked = turretChecks.find(cb => cb.checked);
+        return checked ? checked.dataset.location : "";
       }
-    });
+
+      turretChecks.forEach(cb => {
+        cb.addEventListener("change", () => {
+          if (cb.checked) {
+            turretChecks.forEach(other => {
+              if (other !== cb) other.checked = false;
+            });
+          }
+          assigned[row.name] = {
+            ...assigned[row.name],
+            captain: captainCb.checked,
+            backup: backupCb.checked,
+            turret: getCheckedTurret(),
+            ...row
+          };
+          updateInfoBar();
+          markSavedStatus(false);
+        });
+      });
+    }
   });
+
+  updateInfoBar();
+  markSavedStatus(true);
 }
 
 async function saveShiftData() {
-  const rows = document.querySelectorAll("#shiftTable tbody tr");
-  const result = [];
-
-  rows.forEach(row => {
-    const inputs = row.querySelectorAll("input");
-    const turret = row.querySelector("select")?.value || "";
-    result.push({
-      name: inputs[0].value,
-      alliance: inputs[1].value,
-      troopType: inputs[2].value,
-      troopTier: inputs[3].value,
-      marchSize: inputs[4].value,
-      rallySize: inputs[5].value,
-      total: row.children[6].textContent,
-      captain: inputs[6].checked,
-      backup: inputs[7].checked,
-      joiner: inputs[8].checked,
-      turret
-    });
-  });
-
   try {
-    await setDoc(doc(db, "assignments", "shift1"), { players: result });
+    await setDoc(doc(db, "assignments", "shift1"), { players: Object.values(assigned) });
     showToast("✅ Shift 1 assignments saved.");
+    markSavedStatus(true);
   } catch (err) {
     showToast("❌ Failed to save shift.");
     console.error(err);
