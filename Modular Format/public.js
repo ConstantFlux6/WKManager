@@ -4,6 +4,7 @@ import {
   getFirestore, collection, getDocs
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 import html2canvas from "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js";
+import jsPDF from "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC0Rh4J4NwhFItII8knxp1hnmtH9rCHttA",
@@ -55,6 +56,7 @@ async function handleExport(shift) {
 
   if (assignments.length === 0) return;
   renderForExport(assignments);
+  exportToCSV(assignments);
 }
 
 function renderForExport(assignments) {
@@ -112,10 +114,51 @@ function renderForExport(assignments) {
   document.body.appendChild(container);
 
   html2canvas(container).then(canvas => {
-    const link = document.createElement("a");
-    link.download = "wk_roster.png";
-    link.href = canvas.toDataURL();
-    link.click();
+    const imgData = canvas.toDataURL("image/png");
+
+    const pdf = new jsPDF.jsPDF({ orientation: "landscape" });
+    const imgProps = pdf.getImageProperties(imgData);
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save("wk_roster.pdf");
+
+    const pngLink = document.createElement("a");
+    pngLink.download = "wk_roster.png";
+    pngLink.href = imgData;
+    pngLink.click();
+
     document.body.removeChild(container);
   });
+}
+
+function exportToCSV(assignments) {
+  let csv = "Shift,Name,Alliance,Troop,Tier,March,Rally,Total,Captain,Backup,Turret\n";
+  assignments.forEach(group => {
+    group.players.forEach(p => {
+      const row = [
+        group.title,
+        p.name,
+        p.alliance,
+        p.troopType,
+        p.troopTier,
+        p.marchSize,
+        p.rallySize,
+        (+p.marchSize + +p.rallySize) || 0,
+        p.captain ? "Yes" : "",
+        p.backup ? "Yes" : "",
+        p.turret || ""
+      ];
+      csv += row.map(val => `"${val}"`).join(",") + "\n";
+    });
+  });
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "wk_roster.csv";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
