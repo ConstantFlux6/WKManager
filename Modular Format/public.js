@@ -1,10 +1,10 @@
 // public.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import {
-  getFirestore, collection, getDocs
+  getFirestore, getDoc, doc
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
-import html2canvas from "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js";
-import jsPDF from "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
+import "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js";
+import * as jspdf from "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC0Rh4J4NwhFItII8knxp1hnmtH9rCHttA",
@@ -22,6 +22,9 @@ const exportBtn = document.getElementById("exportBtn");
 const modal = document.getElementById("exportModal");
 const closeBtn = document.querySelector(".modal-close");
 const shiftBtns = document.querySelectorAll(".modal-option");
+const layoutToggle = document.getElementById("layoutToggle");
+const displayArea = document.getElementById("displayArea");
+let currentLayout = "desktop";
 
 exportBtn.addEventListener("click", () => {
   modal.classList.remove("hidden");
@@ -39,19 +42,81 @@ shiftBtns.forEach(btn => {
   });
 });
 
+layoutToggle.addEventListener("click", () => {
+  currentLayout = currentLayout === "desktop" ? "mobile" : "desktop";
+  layoutToggle.textContent = `Switch to ${currentLayout === "desktop" ? "Mobile" : "Desktop"} Layout`;
+  loadAndDisplay("both");
+});
+
+window.addEventListener("DOMContentLoaded", () => loadAndDisplay("both"));
+
+async function loadAndDisplay(shift) {
+  const assignments = [];
+
+  if (shift === "shift1" || shift === "both") {
+    const doc1 = await getDoc(doc(db, "assignments", "shift1"));
+    if (doc1.exists()) assignments.push({ title: "Shift 1", players: doc1.data().players });
+  }
+
+  if (shift === "shift2" || shift === "both") {
+    const doc2 = await getDoc(doc(db, "assignments", "shift2"));
+    if (doc2.exists()) assignments.push({ title: "Shift 2", players: doc2.data().players });
+  }
+
+  displayArea.innerHTML = "";
+  assignments.forEach(group => {
+    const section = document.createElement("section");
+    section.className = `shift-section ${currentLayout}`;
+
+    const title = document.createElement("h2");
+    title.textContent = group.title;
+    section.appendChild(title);
+
+    const turrets = ["H", "N", "E", "S", "W"];
+    const turretContainers = {};
+
+    turrets.forEach(t => {
+      const div = document.createElement("div");
+      div.className = `turret ${t}`;
+      const heading = document.createElement("h3");
+      heading.textContent = turretLabel(t);
+      div.appendChild(heading);
+      const ul = document.createElement("ul");
+      div.appendChild(ul);
+      section.appendChild(div);
+      turretContainers[t] = ul;
+    });
+
+    group.players.forEach(p => {
+      if (!p.turret) return;
+      const li = document.createElement("li");
+      li.className = `tier-${p.troopTier?.toLowerCase()}`;
+      li.innerHTML = `<strong>${p.name}</strong> (${p.alliance})<br>
+        ${p.troopType} T${p.troopTier}<br>
+        March: ${p.marchSize}, Rally: ${p.rallySize}<br>
+        ${p.captain ? "Captain" : p.backup ? "Backup" : "Joiner"}`;
+      turretContainers[p.turret]?.appendChild(li);
+    });
+
+    displayArea.appendChild(section);
+  });
+}
+
+function turretLabel(t) {
+  return t === "H" ? "Hub" : t === "N" ? "North" : t === "S" ? "South" : t === "E" ? "East" : "West";
+}
+
 async function handleExport(shift) {
   const assignments = [];
 
   if (shift === "shift1" || shift === "both") {
-    const snap1 = await getDocs(collection(db, "assignments"));
-    const doc1 = snap1.docs.find(doc => doc.id === "shift1");
-    if (doc1) assignments.push({ title: "Shift 1", players: doc1.data().players });
+    const doc1 = await getDoc(doc(db, "assignments", "shift1"));
+    if (doc1.exists()) assignments.push({ title: "Shift 1", players: doc1.data().players });
   }
 
   if (shift === "shift2" || shift === "both") {
-    const snap2 = await getDocs(collection(db, "assignments"));
-    const doc2 = snap2.docs.find(doc => doc.id === "shift2");
-    if (doc2) assignments.push({ title: "Shift 2", players: doc2.data().players });
+    const doc2 = await getDoc(doc(db, "assignments", "shift2"));
+    if (doc2.exists()) assignments.push({ title: "Shift 2", players: doc2.data().players });
   }
 
   if (assignments.length === 0) return;
@@ -113,10 +178,10 @@ function renderForExport(assignments) {
 
   document.body.appendChild(container);
 
-  html2canvas(container).then(canvas => {
+  window.html2canvas(container).then(canvas => {
     const imgData = canvas.toDataURL("image/png");
 
-    const pdf = new jsPDF.jsPDF({ orientation: "landscape" });
+    const pdf = new jspdf.jsPDF({ orientation: "landscape" });
     const imgProps = pdf.getImageProperties(imgData);
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;

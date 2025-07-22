@@ -304,3 +304,29 @@ input.backup[type="checkbox"]  { accent-color: #ffff00; }
   text-align: center;
   border-radius: 0.5rem;
 }
+
+.hidden {
+  display: none;
+}
+#exportModal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.modal-content {
+  background: #222;
+  color: #fff;
+  padding: 2rem;
+  border-radius: 8px;
+  text-align: center;
+}
+.modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  cursor: pointer;
+  font-size: 2rem;
+}
