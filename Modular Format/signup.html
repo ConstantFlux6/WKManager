@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wasteland King Sign-Up</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      margin: 0;
+      padding: 2rem;
+      background-image: url('signup_background.png');
+      background-color: #000000;
+      background-position-x: center;
+      background-repeat: no-repeat;
+      background-size: 600px;
+      background-position-y: top;
+      color: #c0c0c0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+    .card {
+      background: #000000a0;
+      border: 1px solid #ffffff;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+      max-width: 600px;
+      width: 100%;
+    }
+
+    .bg-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.86); /* Dark overlay for contrast */
+  z-index: 0;
+}
+    
+    label {
+      display: block;
+      margin-top: 1rem;
+    }
+    input, select {
+      width: calc(100% - 2px);
+      box-sizing: border-box;
+      padding: 0.5rem;
+      margin-top: 0.25rem;
+      background: #12121280;
+      color: #800000;
+      border: 1px solid #444;
+      border-radius: 4px;
+    }
+    #review, #confirmBtn { display: none; }
+    button {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      width: 100%;
+      background: #680000;
+      border: none;
+      color: #000;
+      font-weight: bold;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Wasteland King Sign-Up</h2>
+    <form id="signupForm">
+      <label>Alliance
+        <select id="allianceSelect" required></select>
+        <input type="text" id="otherAlliance" class="hidden" placeholder="3-letter code (no brackets)" maxlength="3" />
+      </label>
+      <label>Name <small>(Paste preferred)</small>
+        <input type="text" id="playerName" required />
+      </label>
+      <label>Troop Type
+        <select id="troopType" required>
+          <option value="">-- Select --</option>
+          <option value="Fighter">Fighter</option>
+          <option value="Shooter">Shooter</option>
+          <option value="Rider">Rider</option>
+        </select>
+      </label>
+      <label>Troop Tier
+        <select id="troopTier" required>
+          <option value="">-- Select --</option>
+          <option>T9</option>
+          <option>T10</option>
+          <option>T11</option>
+          <option>T12</option>
+          <option>T13</option>
+        </select>
+      </label>
+      <label>March Size
+        <input type="number" id="marchSize" min="100000" required />
+      </label>
+      <label>Rally Size
+        <input type="number" id="rallySize" min="300000" required />
+      </label>
+      <label>Shift Selection
+        <select id="shift" required>
+          <option value="">-- Select --</option>
+          <option>Start</option>
+          <option>End</option>
+          <option>Start till End</option>
+        </select>
+      </label>
+      <div id="review" class="card"></div>
+      <button type="submit" id="submitBtn">Submit</button>
+      <button type="button" id="confirmBtn">Confirm</button>
+    </form>
+  </div>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+    import { getFirestore, collection, doc, getDocs, getDoc, setDoc, updateDoc, addDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyC0Rh4J4NwhFItII8knxp1hnmtH9rCHttA",
+      authDomain: "pns-bulletin-board.firebaseapp.com",
+      projectId: "pns-bulletin-board",
+      storageBucket: "pns-bulletin-board.firebasestorage.app",
+      messagingSenderId: "837041717725",
+      appId: "1:837041717725:web:b249384baf891d5447b634",
+      measurementId: "G-QPQBV19YF8"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const allianceRef = collection(db, "alliances");
+    const submissionRef = collection(db, "submissions");
+
+    const form = document.getElementById("signupForm");
+    const allianceSelect = document.getElementById("allianceSelect");
+    const otherAlliance = document.getElementById("otherAlliance");
+    const review = document.getElementById("review");
+    const submitBtn = document.getElementById("submitBtn");
+    const confirmBtn = document.getElementById("confirmBtn");
+
+    let pendingSubmission = null;
+
+    async function loadAlliances() {
+      const snap = await getDocs(allianceRef);
+      allianceSelect.innerHTML = `<option value="">-- Select --</option>`;
+      snap.forEach(doc => {
+        allianceSelect.innerHTML += `<option value="${doc.id}">${doc.id}</option>`;
+      });
+      allianceSelect.innerHTML += `<option value="Other">Add Alliance</option>`;
+    }
+
+    allianceSelect.addEventListener("change", () => {
+      if (allianceSelect.value === "Other") {
+        otherAlliance.classList.remove("hidden");
+        otherAlliance.required = true;
+      } else {
+        otherAlliance.classList.add("hidden");
+        otherAlliance.required = false;
+      }
+    });
+
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+
+      const name = document.getElementById("playerName").value.trim();
+      const alliance = allianceSelect.value === "Other" ? otherAlliance.value.replace(/[^A-Za-z0-9]/g, '') : allianceSelect.value;
+      const type = document.getElementById("troopType").value;
+      const tier = document.getElementById("troopTier").value;
+      const march = parseInt(document.getElementById("marchSize").value);
+      const rally = parseInt(document.getElementById("rallySize").value);
+      const shift = document.getElementById("shift").value;
+
+      if (!name || !alliance || !type || !tier || !march || !rally || !shift) return alert("Please complete all fields.");
+
+      if (alliance.length !== 3 || /[[\]]/.test(alliance)) return alert("Alliance abbreviation must be 3 characters, no brackets.");
+
+      const existingQuery = query(submissionRef, where("name", "==", name));
+      const matchSnap = await getDocs(existingQuery);
+
+      if (!matchSnap.empty) {
+        const data = matchSnap.docs[0].data();
+        if (!confirm(`Duplicate found:\n\nName: ${data.name}\nAlliance: ${data.alliance}\nTier: ${data.troopTier}\nShift: ${data.shift}\n\nSubmit again to overwrite.`)) return;
+      }
+
+      review.innerHTML = `
+        <h3>Review Your Submission:</h3>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Alliance:</strong> ${alliance}</p>
+        <p><strong>Type:</strong> ${type} | <strong>Tier:</strong> ${tier}</p>
+        <p><strong>March:</strong> ${march} | <strong>Rally:</strong> ${rally}</p>
+        <p><strong>Shift:</strong> ${shift}</p>
+      `;
+
+      pendingSubmission = { name, alliance, troopType: type, troopTier: tier, marchSize: march, rallySize: rally, shift, timestamp: serverTimestamp() };
+      review.style.display = "block";
+      submitBtn.style.display = "none";
+      confirmBtn.style.display = "block";
+    });
+
+    confirmBtn.addEventListener("click", async () => {
+      if (!pendingSubmission) return;
+
+      const existingQuery = query(submissionRef, where("name", "==", pendingSubmission.name));
+      const matchSnap = await getDocs(existingQuery);
+
+      if (!matchSnap.empty) {
+        const docRef = matchSnap.docs[0].ref;
+        const oldData = matchSnap.docs[0].data();
+        const history = oldData.history || [];
+        history.push({ ...oldData });
+        await updateDoc(docRef, { ...pendingSubmission, history });
+      } else {
+        await addDoc(submissionRef, pendingSubmission);
+      }
+
+      if (allianceSelect.value === "Other") {
+        try {
+          await setDoc(doc(allianceRef, pendingSubmission.alliance), {});
+        } catch(e) {}
+      }
+
+      alert("Submission successful!");
+      location.reload();
+    });
+
+    loadAlliances();
+  </script>
+</body>
+</html>

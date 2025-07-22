@@ -153,3 +153,107 @@ async function saveShiftData() {
     console.error(err);
   }
 }
+document.getElementById("autofillShift1").addEventListener("click", autoFillAndSaveRoster);
+
+async function autoFillAndSaveRoster() {
+  const playersUsed = new Set();
+  const fields = {};
+
+  const turrets = ["North", "South", "East", "West"];
+  const locationMap = {};
+
+  // Get user-selected captains and troop types
+  for (const loc of [...turrets, "Hub"]) {
+    const rows = document.querySelectorAll(`.turretCheck[data-location="${loc}"]:checked`);
+    const captains = Array.from(rows).filter(row =>
+      row.closest("tr").querySelector(".captain:checked")
+    ).map(row => {
+      const tr = row.closest("tr");
+      const name = tr.children[0].querySelector("input").value;
+      const troopType = tr.children[2].querySelector("input").value;
+      const troopTier = tr.children[3].querySelector("input").value;
+      const march = +(tr.children[4].querySelector("input").value || 0);
+      const rally = +(tr.children[5].querySelector("input").value || 0);
+      return { name, troopType, troopTier, marchSize: march, rallySize: rally };
+    });
+
+    if (captains.length > 0) {
+      locationMap[loc] = captains[0]; // Only first captain per turret for now
+      playersUsed.add(captains[0].name);
+    }
+  }
+
+  for (const [loc, captain] of Object.entries(locationMap)) {
+    const capKey = loc.toLowerCase() + "-captain";
+    const typeKey = loc.toLowerCase() + "-type";
+    const joinerKey = loc.toLowerCase() + "-joiners";
+    const cap2Key = capKey + "-2";
+    const type2Key = typeKey + "-2";
+    const joiner2Key = joinerKey + "-2";
+
+    fields[capKey] = `${captain.name} - ${captain.marchSize}`;
+    fields[cap2Key] = `${captain.name} - ${captain.marchSize}`;
+    fields[typeKey] = captain.troopType + "s";
+    fields[type2Key] = captain.troopType + "s";
+
+    if (loc === "Hub") {
+      fields[joinerKey] = "";
+      fields[joiner2Key] = "";
+      continue;
+    }
+
+    // Filter eligible joiners
+    const eligible = fullData.filter(p =>
+      !playersUsed.has(p.name) &&
+      p.troopType === captain.troopType &&
+      (p.shift === "Start" || p.shift === "Start till End")
+    );
+
+    const t10plus = eligible.filter(p => {
+      const tier = +(p.troopTier?.replace("T", "") || 0);
+      return tier >= 10;
+    }).sort((a, b) => (+b.rallySize || 0) - (+a.rallySize || 0));
+
+    const t9 = eligible.filter(p => p.troopTier === "T9");
+
+    const joiners = [];
+    const maxJoiners = 29;
+    const rally = captain.rallySize;
+    let needed = rally;
+
+    for (const p of t10plus) {
+      if (joiners.length >= maxJoiners) break;
+      const max = +p.marchSize || 0;
+      const target = Math.ceil(needed / (maxJoiners - joiners.length));
+      const send = Math.min(max, target);
+      joiners.push(`${p.name} - ${send}`);
+      playersUsed.add(p.name);
+      needed -= send;
+      if (needed <= 0) break;
+    }
+
+    if (needed > 0) {
+      for (const p of t9) {
+        if (joiners.length >= maxJoiners) break;
+        const send = Math.min(+p.marchSize || 0, 1000);
+        if (send > 0) {
+          joiners.push(`${p.name} - ${send}`);
+          playersUsed.add(p.name);
+          needed -= send;
+        }
+        if (needed <= 0) break;
+      }
+    }
+
+    fields[joinerKey] = joiners.slice(0, 15).join("\n");
+    fields[joiner2Key] = joiners.slice(15).join("\n");
+  }
+
+  try {
+    await setDoc(doc(db, "roster", "turrets"), fields);
+    showToast("✅ Roster autofilled and saved.");
+  } catch (err) {
+    showToast("❌ Failed to save roster.");
+    console.error(err);
+  }
+}

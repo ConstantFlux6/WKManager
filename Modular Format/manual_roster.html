@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Puzzles & Survival - Turret & Hub Roster</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans','Noto Sans KR','Noto Color Emoji','Segoe UI Emoji','Apple Color Emoji',sans-serif;
+      background: #121212;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      text-align: center;
+      margin: 2rem 0 1rem;
+      font-size: 1.5rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-areas: "north west hub east south";
+      grid-template-columns: repeat(5, 1fr);
+      grid-gap: 1rem;
+      max-width: 1200px;
+      width: 100%;
+    }
+    .zone {
+      background: #1e1e1e;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.3);
+    }
+    .zone h2 { text-align: center; margin-bottom: 0.5rem; }
+    .zone label {
+      display: block;
+      margin-top: 0.5rem;
+      margin-bottom: 0.25rem;
+      font-weight: bold;
+    }
+    .zone textarea, .zone select {
+      width: 100%;
+      background: #2a2a2a;
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 0.5rem;
+      font-family: 'Noto Sans', sans-serif;
+      margin-bottom: 0.5rem;
+    }
+    .zone textarea {
+      resize: none;
+      transition: height 0.2s ease;
+      overflow: hidden;
+    }
+    .zone .captain { min-height: 60px; }
+    .zone .joiners { min-height: 100px; }
+    .north { grid-area: north; }
+    .south { grid-area: south; }
+    .east  { grid-area: east;  }
+    .west  { grid-area: west;  }
+    .hub   { grid-area: hub;   }
+    #adminLoginToggle {
+      position: fixed; top: 1rem; right: 1rem;
+      background: #1e1e1e; border: 1px solid #444;
+      color: #aaa; font-size: 0.9rem;
+      padding: 0.5rem 1rem; border-radius: 4px;
+      cursor: pointer;
+    }
+    #loginSection {
+      display: none; position: fixed; top: 3.5rem; right: 1rem;
+      max-width: 300px; background: #1e1e1e;
+      padding: 1rem; border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.6);
+      z-index: 10;
+    }
+    #loginSection input { width: 100%; margin-bottom: 0.5rem; }
+    #saveBtn {
+      margin-top: 2rem; padding: 0.75rem; font-size: 1rem; width: 100%; max-width: 400px;
+      background: #6200ee; color: white; border: none; border-radius: 4px; cursor: pointer; display: none;
+    }
+    #errorMsg { color: #f44336; text-align: center; display: none; }
+    @media (max-width: 768px) {
+      .grid {
+        grid-template-areas:
+          "north" "west" "hub" "east" "south";
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+  apiKey: "AIzaSyC0Rh4J4NwhFItII8knxp1hnmtH9rCHttA",
+  authDomain: "pns-bulletin-board.firebaseapp.com",
+  projectId: "pns-bulletin-board",
+  storageBucket: "pns-bulletin-board.firebasestorage.app",
+  messagingSenderId: "837041717725",
+  appId: "1:837041717725:web:b249384baf891d5447b634"
+};
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const docRef = doc(db, "roster", "turrets");
+
+  const zones = ["north", "south", "east", "west", "hub"];
+  const shifts = ["", "-2"];
+  const fields = [];
+
+  shifts.forEach(suffix => {
+    zones.forEach(zone => {
+      fields.push(`${zone}-captain${suffix}`);
+      fields.push(`${zone}-type${suffix}`);
+      fields.push(`${zone}-joiners${suffix}`);
+    });
+  });
+
+  const inputs = {};
+  window.addEventListener("DOMContentLoaded", () => {
+    const root = document.body;
+
+    const loginBtn = document.createElement("button");
+    loginBtn.id = "adminLoginToggle";
+    loginBtn.textContent = "Admin Login";
+    root.appendChild(loginBtn);
+
+    const loginDiv = document.createElement("div");
+    loginDiv.id = "loginSection";
+    loginDiv.innerHTML = `
+      <input type="password" id="adminPassword" placeholder="Enter admin password" />
+      <button onclick="login()">Login</button>
+      <div id="errorMsg">Incorrect password</div>
+    `;
+    root.appendChild(loginDiv);
+
+    shifts.forEach((suffix, i) => {
+      const h1 = document.createElement("h1");
+      const shiftTimeData = [
+        { utc: "11:00 - 15:00", startUTC: 11, endUTC: 15 },
+        { utc: "15:00 - 19:00", startUTC: 15, endUTC: 19 }
+      ];
+      const st = shiftTimeData[i];
+      const options = { hour: '2-digit', minute: '2-digit' };
+      const localStart = new Date(Date.UTC(1970,0,1,st.startUTC)).toLocaleTimeString([], options);
+      const localEnd = new Date(Date.UTC(1970,0,1,st.endUTC)).toLocaleTimeString([], options);
+      h1.innerHTML = `Turret & Hub Roster - Shift ${i + 1}<br>
+<span style='font-size:1.6rem;'>${localStart.replace(/^0/, '')} - ${localEnd.replace(/^0/, '')}</span> <span style='font-size:0.8rem;'>Local Time</span> <span style='font-size:0.9rem;color:#bbb;'>(<span style='font-size:0.9rem;'>${st.utc}</span> UTC)</span>`;
+      root.appendChild(h1);
+
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      zones.forEach(zone => {
+        const id = zone + suffix;
+        const div = document.createElement("div");
+        div.className = `zone ${zone}`;
+        div.innerHTML = `
+          <h2>${zone[0].toUpperCase() + zone.slice(1)} Turret</h2>
+          <label>Captain</label>
+          <textarea id="${zone}-captain${suffix}" class="captain" readonly></textarea>
+          <label>Type</label>
+          <select id="${zone}-type${suffix}" disabled>
+            <option value="">-- Select Type --</option>
+            <option value="Fighters">Fighters</option>
+            <option value="Shooters">Shooters</option>
+            <option value="Riders">Riders</option>
+          </select>
+          <label>Joiners</label>
+          <textarea id="${zone}-joiners${suffix}" class="joiners" readonly></textarea>
+        `;
+        grid.appendChild(div);
+      });
+      root.appendChild(grid);
+    });
+
+    const saveBtn = document.createElement("button");
+    saveBtn.id = "saveBtn";
+    saveBtn.textContent = "Save Changes";
+    root.appendChild(saveBtn);
+
+    fields.forEach(id => inputs[id] = document.getElementById(id));
+    loginBtn.addEventListener("click", () => {
+      loginDiv.style.display = "block";
+      document.getElementById("errorMsg").style.display = "none";
+    });
+
+    window.login = function () {
+      const entered = document.getElementById("adminPassword").value.trim();
+      if (entered === "902") {
+        fields.forEach(id => {
+          const el = inputs[id];
+          if (el.tagName === "TEXTAREA") el.removeAttribute("readonly");
+          if (el.tagName === "SELECT") el.removeAttribute("disabled");
+        });
+        loginDiv.style.display = "none";
+        loginBtn.style.display = "none";
+        saveBtn.style.display = "block";
+      } else {
+        document.getElementById("errorMsg").style.display = "block";
+      }
+    }
+
+    saveBtn.addEventListener("click", async () => {
+      const data = {};
+      fields.forEach(id => data[id] = inputs[id].value.trim());
+      try {
+        await setDoc(docRef, data);
+        alert("Data saved successfully.");
+      } catch (err) {
+        alert("Failed to save data. Check console.");
+        console.error(err);
+      }
+    });
+
+    const autoResize = el => {
+      el.style.height = "auto";
+      el.style.height = el.scrollHeight + "px";
+    };
+
+    fields.forEach(id => {
+      const el = inputs[id];
+      if (el.tagName === "TEXTAREA") {
+        el.addEventListener("input", () => autoResize(el));
+      }
+    });
+
+    (async function loadData() {
+      try {
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          fields.forEach(id => {
+            inputs[id].value = data[id] || "";
+            if (inputs[id].tagName === "TEXTAREA") autoResize(inputs[id]);
+          });
+        }
+      } catch (err) {
+        console.error("Error loading:", err);
+      }
+    })();
+  });
+</script>
+
+</body>
+</html>

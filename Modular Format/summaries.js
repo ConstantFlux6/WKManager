@@ -31,7 +31,7 @@ function renderSummaries(data) {
   const grid = document.getElementById("summaryGrid");
   if (!grid) return;
 
-  const tierCounts = { T9: 0, T10: 0, T11: 0, T12: 0, T13: 0,};
+  const tierCounts = { T9: 0, T10: 0, T11: 0, T12: 0, T13: 0 };
   const typeCounts = { Fighter: 0, Shooter: 0, Rider: 0 };
   const allianceCounts = {};
 
@@ -48,16 +48,25 @@ function renderSummaries(data) {
   const createGroup = (title, entries, category = null) => {
     let html = `<div class="partition-title">${title}</div><div class="summary-subgrid">`;
     for (const [label, count] of entries) {
-      const colorStyle = category ? `style=\"color:${assignColor(label, category)}\"` : "";
+      const colorStyle = category ? `style="color:${assignColor(label, category)}"` : "";
       html += `<div class="summary-item"><h3 ${colorStyle}>${label}</h3><div>${count}</div></div>`;
     }
     html += `</div>`;
     return html;
   };
 
+  const totalSubmissionsHTML = `
+    <div class="summary-subgrid">
+      <div class="partition-title" style="margin: 0rem;">
+        <h2 style="padding: 0rem; margin: 0rem;">Total Submissions: ${data.length}</h2>
+      </div>
+    </div>
+  `;
+
   const tierSection = createGroup("Total Troop Tier", Object.entries(tierCounts));
   const typeSection = createGroup("Troop Types", Object.entries(typeCounts));
   const allianceSection = createGroup("Alliance Count", Object.entries(allianceCounts), "alliance");
 
-  grid.innerHTML = tierSection + typeSection + allianceSection;
+  grid.innerHTML = totalSubmissionsHTML + tierSection + typeSection + allianceSection;
 }
+
