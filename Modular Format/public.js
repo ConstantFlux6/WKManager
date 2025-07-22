@@ -1,7 +1,8 @@
-// public.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import {
-  getFirestore, getDoc, doc
+  getFirestore,
+  doc,
+  getDoc
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 import "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js";
 import * as jspdf from "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
@@ -10,7 +11,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyC0Rh4J4NwhFItII8knxp1hnmtH9rCHttA",
   authDomain: "pns-bulletin-board.firebaseapp.com",
   projectId: "pns-bulletin-board",
-  storageBucket: "pns-bulletin-board.firebasestorage.app",
+  storageBucket: "pns-bulletin-board.appspot.com",
   messagingSenderId: "837041717725",
   appId: "1:837041717725:web:b249384baf891d5447b634"
 };
@@ -18,212 +19,156 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const exportBtn = document.getElementById("exportBtn");
-const modal = document.getElementById("exportModal");
-const closeBtn = document.querySelector(".modal-close");
-const shiftBtns = document.querySelectorAll(".modal-option");
-const layoutToggle = document.getElementById("layoutToggle");
+const turretOrder = ["North", "West", "Hub", "East", "South"];
 const displayArea = document.getElementById("displayArea");
-let currentLayout = "desktop";
 
-exportBtn.addEventListener("click", () => {
-  modal.classList.remove("hidden");
-});
-
-closeBtn.addEventListener("click", () => {
-  modal.classList.add("hidden");
-});
-
-shiftBtns.forEach(btn => {
-  btn.addEventListener("click", () => {
-    const shift = btn.dataset.shift;
-    modal.classList.add("hidden");
-    handleExport(shift);
-  });
-});
-
-layoutToggle.addEventListener("click", () => {
-  currentLayout = currentLayout === "desktop" ? "mobile" : "desktop";
-  layoutToggle.textContent = `Switch to ${currentLayout === "desktop" ? "Mobile" : "Desktop"} Layout`;
-  loadAndDisplay("both");
-});
-
-window.addEventListener("DOMContentLoaded", () => loadAndDisplay("both"));
-
-async function loadAndDisplay(shift) {
-  const assignments = [];
-
-  if (shift === "shift1" || shift === "both") {
-    const doc1 = await getDoc(doc(db, "assignments", "shift1"));
-    if (doc1.exists()) assignments.push({ title: "Shift 1", players: doc1.data().players });
-  }
-
-  if (shift === "shift2" || shift === "both") {
-    const doc2 = await getDoc(doc(db, "assignments", "shift2"));
-    if (doc2.exists()) assignments.push({ title: "Shift 2", players: doc2.data().players });
-  }
-
-  displayArea.innerHTML = "";
-  assignments.forEach(group => {
-    const section = document.createElement("section");
-    section.className = `shift-section ${currentLayout}`;
-
-    const title = document.createElement("h2");
-    title.textContent = group.title;
-    section.appendChild(title);
-
-    const turrets = ["H", "N", "E", "S", "W"];
-    const turretContainers = {};
-
-    turrets.forEach(t => {
-      const div = document.createElement("div");
-      div.className = `turret ${t}`;
-      const heading = document.createElement("h3");
-      heading.textContent = turretLabel(t);
-      div.appendChild(heading);
-      const ul = document.createElement("ul");
-      div.appendChild(ul);
-      section.appendChild(div);
-      turretContainers[t] = ul;
-    });
-
-    group.players.forEach(p => {
-      if (!p.turret) return;
-      const li = document.createElement("li");
-      li.className = `tier-${p.troopTier?.toLowerCase()}`;
-      li.innerHTML = `<strong>${p.name}</strong> (${p.alliance})<br>
-        ${p.troopType} T${p.troopTier}<br>
-        March: ${p.marchSize}, Rally: ${p.rallySize}<br>
-        ${p.captain ? "Captain" : p.backup ? "Backup" : "Joiner"}`;
-      turretContainers[p.turret]?.appendChild(li);
-    });
-
-    displayArea.appendChild(section);
-  });
+function createTurretCard(turret, data = {}) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "zone";
+  wrapper.innerHTML = `
+    <h2>${turret} Turret</h2>
+    <label>Captain</label>
+    <textarea readonly>${data.captain || ""}</textarea>
+    <label>Type</label>
+    <select disabled>
+      <option value="">-- Select Type --</option>
+      <option value="Fighters" ${data.type === "Fighters" ? "selected" : ""}>Fighters</option>
+      <option value="Shooters" ${data.type === "Shooters" ? "selected" : ""}>Shooters</option>
+      <option value="Riders" ${data.type === "Riders" ? "selected" : ""}>Riders</option>
+    </select>
+    <label>Joiners</label>
+    <textarea readonly class="joiners">${data.joiners || ""}</textarea>
+  `;
+  return wrapper;
 }
 
-function turretLabel(t) {
-  return t === "H" ? "Hub" : t === "N" ? "North" : t === "S" ? "South" : t === "E" ? "East" : "West";
-}
-
-async function handleExport(shift) {
-  const assignments = [];
-
-  if (shift === "shift1" || shift === "both") {
-    const doc1 = await getDoc(doc(db, "assignments", "shift1"));
-    if (doc1.exists()) assignments.push({ title: "Shift 1", players: doc1.data().players });
-  }
-
-  if (shift === "shift2" || shift === "both") {
-    const doc2 = await getDoc(doc(db, "assignments", "shift2"));
-    if (doc2.exists()) assignments.push({ title: "Shift 2", players: doc2.data().players });
-  }
-
-  if (assignments.length === 0) return;
-  renderForExport(assignments);
-  exportToCSV(assignments);
-}
-
-function renderForExport(assignments) {
+function renderShift(title, timeLabel, shiftData = {}) {
   const container = document.createElement("div");
-  container.style.padding = "1rem";
-  container.style.background = getComputedStyle(document.body).backgroundColor;
-  container.style.color = getComputedStyle(document.body).color;
-  container.style.fontFamily = 'Roboto, sans-serif';
-  container.style.width = "fit-content";
+  const header = document.createElement("h2");
+  header.innerHTML = `${title}<br/><span style="font-size:0.9rem">${timeLabel}</span>`;
+  container.appendChild(header);
 
-  assignments.forEach(group => {
-    const title = document.createElement("h2");
-    title.textContent = group.title;
-    container.appendChild(title);
-
-    const table = document.createElement("table");
-    table.style.borderCollapse = "collapse";
-    table.style.marginBottom = "2rem";
-    table.style.border = "1px solid #666";
-    table.innerHTML = `
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Alliance</th>
-          <th>Troop</th>
-          <th>Tier</th>
-          <th>March</th>
-          <th>Rally</th>
-          <th>Total</th>
-          <th>Captain</th>
-          <th>Backup</th>
-          <th>Turret</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${group.players.map(p => `
-          <tr>
-            <td>${p.name}</td>
-            <td>${p.alliance}</td>
-            <td>${p.troopType}</td>
-            <td>${p.troopTier}</td>
-            <td>${p.marchSize}</td>
-            <td>${p.rallySize}</td>
-            <td>${(+p.marchSize + +p.rallySize) || 0}</td>
-            <td>${p.captain ? "✔" : ""}</td>
-            <td>${p.backup ? "✔" : ""}</td>
-            <td>${p.turret || ""}</td>
-          </tr>
-        `).join("")}
-      </tbody>
-    `;
-    container.appendChild(table);
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  turretOrder.forEach(turret => {
+    const section = shiftData[turret] || {};
+    grid.appendChild(createTurretCard(turret, section));
   });
 
-  document.body.appendChild(container);
-
-  window.html2canvas(container).then(canvas => {
-    const imgData = canvas.toDataURL("image/png");
-
-    const pdf = new jspdf.jsPDF({ orientation: "landscape" });
-    const imgProps = pdf.getImageProperties(imgData);
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    pdf.save("wk_roster.pdf");
-
-    const pngLink = document.createElement("a");
-    pngLink.download = "wk_roster.png";
-    pngLink.href = imgData;
-    pngLink.click();
-
-    document.body.removeChild(container);
-  });
+  container.appendChild(grid);
+  displayArea.appendChild(container);
 }
 
-function exportToCSV(assignments) {
-  let csv = "Shift,Name,Alliance,Troop,Tier,March,Rally,Total,Captain,Backup,Turret\n";
-  assignments.forEach(group => {
-    group.players.forEach(p => {
-      const row = [
-        group.title,
-        p.name,
-        p.alliance,
-        p.troopType,
-        p.troopTier,
-        p.marchSize,
-        p.rallySize,
-        (+p.marchSize + +p.rallySize) || 0,
-        p.captain ? "Yes" : "",
-        p.backup ? "Yes" : "",
-        p.turret || ""
-      ];
-      csv += row.map(val => `"${val}"`).join(",") + "\n";
+function convertPlayersToTurrets(players = []) {
+  const result = {};
+  for (const turret of turretOrder) result[turret] = { captain: "", type: "", joiners: "" };
+
+  players.forEach(p => {
+    const t = p.turret;
+    if (!t || !result[t]) return;
+
+    if (p.captain) result[t].captain = p.name;
+    if (!result[t].type && p.troopType) result[t].type = p.troopType + "s";
+    if (p.joiner) {
+      const line = `${p.name} - ${+p.rallySize || +p.marchSize || 1000}`;
+      result[t].joiners += (result[t].joiners ? "\n" : "") + line;
+    }
+  });
+
+  return result;
+}
+
+async function loadRoster() {
+  displayArea.innerHTML = "";
+
+  const shiftLabels = [
+    { id: "shift1", title: "Turret & Hub Roster - Shift 1", time: "5:00 AM - 9:00 AM local (11:00 - 15:00 UTC)" },
+    { id: "shift2", title: "Turret & Hub Roster - Shift 2", time: "9:00 AM - 1:00 PM local (15:00 - 19:00 UTC)" }
+  ];
+
+  for (const { id, title, time } of shiftLabels) {
+    try {
+      const snap = await getDoc(doc(db, "assignments", id));
+      const players = snap.exists() ? snap.data().players || [] : [];
+      const grouped = convertPlayersToTurrets(players);
+      renderShift(title, time, grouped);
+    } catch (err) {
+      console.error(`Failed to load ${id}:`, err);
+      renderShift(title, time); // still show structure
+    }
+  }
+}
+
+function exportAs(format, shiftOption) {
+  const clone = displayArea.cloneNode(true);
+  clone.style.position = "absolute";
+  clone.style.top = "-9999px";
+  document.body.appendChild(clone);
+
+  if (format === "png" || format === "pdf") {
+    window.html2canvas(clone).then(canvas => {
+      if (format === "png") {
+        const link = document.createElement("a");
+        link.download = "wk_roster.png";
+        link.href = canvas.toDataURL();
+        link.click();
+      } else {
+        const pdf = new jspdf.jsPDF({ orientation: "landscape" });
+        const img = canvas.toDataURL("image/png");
+        const width = pdf.internal.pageSize.getWidth();
+        const height = (canvas.height * width) / canvas.width;
+        pdf.addImage(img, "PNG", 0, 0, width, height);
+        pdf.save("wk_roster.pdf");
+      }
+      document.body.removeChild(clone);
+    });
+  } else if (format === "csv") {
+    const rows = [["Shift", "Turret", "Captain", "Type", "Joiner"]];
+    document.querySelectorAll("#displayArea > div").forEach((shiftDiv, si) => {
+      const shiftName = si === 0 ? "Shift 1" : "Shift 2";
+      const turrets = shiftDiv.querySelectorAll(".zone");
+      turrets.forEach(turret => {
+        const title = turret.querySelector("h2")?.textContent?.replace(" Turret", "");
+        const captain = turret.querySelector("textarea")?.value || "";
+        const type = turret.querySelector("select")?.value || "";
+        const joiners = turret.querySelector(".joiners")?.value?.split("\n") || [""];
+        joiners.forEach(j => {
+          rows.push([shiftName, title, captain, type, j]);
+        });
+      });
+    });
+
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "wk_roster.csv";
+    a.click();
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadRoster();
+
+  document.getElementById("layoutToggle").addEventListener("click", () => {
+    document.body.classList.toggle("mobile-layout");
+  });
+
+  document.getElementById("exportBtn").addEventListener("click", () => {
+    document.getElementById("exportModal").classList.remove("hidden");
+  });
+
+  document.querySelector(".modal-close").addEventListener("click", () => {
+    document.getElementById("exportModal").classList.add("hidden");
+  });
+
+  document.querySelectorAll(".modal-option").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const shift = btn.dataset.shift;
+      document.getElementById("exportModal").classList.add("hidden");
+      exportAs("png", shift);  // default to PNG for now
+      exportAs("pdf", shift);
+      exportAs("csv", shift);
     });
   });
-
-  const blob = new Blob([csv], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "wk_roster.csv";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
+});
