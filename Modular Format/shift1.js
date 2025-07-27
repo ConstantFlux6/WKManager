@@ -100,7 +100,7 @@ async function loadShiftData() {
         <td><input type="checkbox" class="backup" ${prev.backup ? "checked" : ""} /></td>
         <td>
           <div class="turret-options">
-            ${["Hub", "North", "Eeast", "South", "West"].map(loc => `
+            ${["Hub", "North", "East", "South", "West"].map(loc => `
               <label><input type="checkbox" class="turretCheck" data-location="${loc}" 
               ${assignedTurret === loc ? "checked" : ""}/> ${loc}</label>`).join(" ")}
           </div>
@@ -153,7 +153,18 @@ async function saveShiftData() {
     console.error(err);
   }
 }
-document.getElementById("autofillShift1").addEventListener("click", autoFillAndSaveRoster);
+
+const autofillBtn = document.getElementById("autofillShift1");
+autofillBtn.addEventListener("click", async () => {
+  autofillBtn.disabled = true;
+  autofillBtn.textContent = "Filling...";
+  try {
+    await autoFillAndSaveRoster();
+  } finally {
+    autofillBtn.disabled = false;
+    autofillBtn.textContent = "Autofill Roster";
+  }
+});
 
 async function autoFillAndSaveRoster() {
   const playersUsed = new Set();
@@ -187,18 +198,12 @@ async function autoFillAndSaveRoster() {
     const capKey = loc.toLowerCase() + "-captain";
     const typeKey = loc.toLowerCase() + "-type";
     const joinerKey = loc.toLowerCase() + "-joiners";
-    const cap2Key = capKey + "-2";
-    const type2Key = typeKey + "-2";
-    const joiner2Key = joinerKey + "-2";
 
     fields[capKey] = `${captain.name} - ${captain.marchSize}`;
-    fields[cap2Key] = `${captain.name} - ${captain.marchSize}`;
     fields[typeKey] = captain.troopType + "s";
-    fields[type2Key] = captain.troopType + "s";
 
     if (loc === "Hub") {
       fields[joinerKey] = "";
-      fields[joiner2Key] = "";
       continue;
     }
 
@@ -218,15 +223,14 @@ async function autoFillAndSaveRoster() {
 
     const joiners = [];
     const maxJoiners = 29;
-    const rally = captain.rallySize;
-    let needed = rally;
+    let needed = captain.rallySize;
 
     for (const p of t10plus) {
       if (joiners.length >= maxJoiners) break;
       const max = +p.marchSize || 0;
       const target = Math.ceil(needed / (maxJoiners - joiners.length));
       const send = Math.min(max, target);
-      joiners.push(`${p.name} - ${send}`);
+      joiners.push({ name: p.name, troopTier: p.troopTier, send });
       playersUsed.add(p.name);
       needed -= send;
       if (needed <= 0) break;
@@ -237,7 +241,7 @@ async function autoFillAndSaveRoster() {
         if (joiners.length >= maxJoiners) break;
         const send = Math.min(+p.marchSize || 0, 1000);
         if (send > 0) {
-          joiners.push(`${p.name} - ${send}`);
+          joiners.push({ name: p.name, troopTier: p.troopTier, send });
           playersUsed.add(p.name);
           needed -= send;
         }
@@ -245,8 +249,9 @@ async function autoFillAndSaveRoster() {
       }
     }
 
-    fields[joinerKey] = joiners.slice(0, 15).join("\n");
-    fields[joiner2Key] = joiners.slice(15).join("\n");
+    fields[joinerKey] = joiners
+      .map(p => `${p.name} (${p.troopTier}) - ${p.send}`)
+      .join("\n");
   }
 
   try {
