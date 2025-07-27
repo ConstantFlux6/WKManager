@@ -1,4 +1,4 @@
-// shift1.js (cleaned)
+// shift1.js (updated with tier/rally-based troop distribution and summaries)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import {
   getFirestore, collection, getDocs, setDoc, doc, getDoc
@@ -22,20 +22,25 @@ let assigned = {};
 window.addEventListener("DOMContentLoaded", () => {
   loadShiftData();
   document.getElementById("saveShift1").addEventListener("click", saveShiftData);
+  const autofillBtn = document.getElementById("autofillShift1");
+  autofillBtn.addEventListener("click", async () => {
+    autofillBtn.disabled = true;
+    autofillBtn.textContent = "Filling...";
+    try {
+      await autoFillAndSaveRoster();
+    } finally {
+      autofillBtn.disabled = false;
+      autofillBtn.textContent = "Autofill Roster";
+    }
+  });
 });
 
 function markSavedStatus(saved) {
   const btn = document.getElementById("saveShift1");
   if (!btn) return;
-  if (saved) {
-    btn.textContent = "Saved";
-    btn.classList.remove("save-pending");
-    btn.classList.add("save-complete");
-  } else {
-    btn.textContent = "Save Work";
-    btn.classList.remove("save-complete");
-    btn.classList.add("save-pending");
-  }
+  btn.textContent = saved ? "Saved" : "Save Work";
+  btn.classList.toggle("save-complete", saved);
+  btn.classList.toggle("save-pending", !saved);
 }
 
 function updateInfoBar() {
@@ -78,16 +83,13 @@ async function loadShiftData() {
 
   Object.keys(grouped).forEach(type => {
     grouped[type].sort((a, b) => (+b.rallySize || 0) - (+a.rallySize || 0));
-
     const tbody = document.querySelector(`#table${type} tbody`);
     tbody.innerHTML = "";
-
     for (const row of grouped[type]) {
       const total = (+row.marchSize || 0) + (+row.rallySize || 0);
       const prev = assigned[row.name] || {};
       const tr = document.createElement("tr");
       const assignedTurret = prev.turret || "";
-
       tr.innerHTML = `
         <td><input disabled value="${row.name}" /></td>
         <td><input disabled value="${row.alliance}" style="color:${assignColor(row.alliance, 'alliance')}" /></td>
@@ -106,25 +108,17 @@ async function loadShiftData() {
           </div>
         </td>
       `;
-
       tbody.appendChild(tr);
-
       const captainCb = tr.querySelector(".captain");
       const backupCb = tr.querySelector(".backup");
       const turretChecks = Array.from(tr.querySelectorAll(".turretCheck"));
-
       function getCheckedTurret() {
         const checked = turretChecks.find(cb => cb.checked);
         return checked ? checked.dataset.location : "";
       }
-
       turretChecks.forEach(cb => {
         cb.addEventListener("change", () => {
-          if (cb.checked) {
-            turretChecks.forEach(other => {
-              if (other !== cb) other.checked = false;
-            });
-          }
+          if (cb.checked) turretChecks.forEach(other => { if (other !== cb) other.checked = false });
           assigned[row.name] = {
             ...assigned[row.name],
             captain: captainCb.checked,
@@ -138,7 +132,6 @@ async function loadShiftData() {
       });
     }
   });
-
   updateInfoBar();
   markSavedStatus(true);
 }
@@ -153,18 +146,41 @@ async function saveShiftData() {
     console.error(err);
   }
 }
+function updateTurretSummariesWithTotals() {
+  const zones = ["north", "south", "east", "west", "hub"];
+  for (const zone of zones) {
+    const textarea = document.getElementById(`${zone}-joiners`);
+    const summaryDiv = document.getElementById(`summary-${zone}`);
+    if (!textarea || !summaryDiv) continue;
 
-const autofillBtn = document.getElementById("autofillShift1");
-autofillBtn.addEventListener("click", async () => {
-  autofillBtn.disabled = true;
-  autofillBtn.textContent = "Filling...";
-  try {
-    await autoFillAndSaveRoster();
-  } finally {
-    autofillBtn.disabled = false;
-    autofillBtn.textContent = "Autofill Roster";
+    const lines = textarea.value.split("\n").map(line => line.trim()).filter(Boolean);
+    const tierCounts = {};
+    let totalTroops = 0;
+
+    for (const line of lines) {
+      // Match (T##) and troop count after dash or space
+      const tierMatch = line.match(/\(T(\d+)\)/);
+      const troopMatch = line.match(/[-–]\s*(\d{3,7})$/);
+      
+      if (tierMatch) {
+        const tier = `T${tierMatch[1]}`;
+        tierCounts[tier] = (tierCounts[tier] || 0) + 1;
+      }
+
+      if (troopMatch) {
+        totalTroops += parseInt(troopMatch[1], 10);
+      }
+    }
+
+    const tierText = Object.entries(tierCounts)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([tier, count]) => `${tier}: ${count}`)
+      .join(" | ");
+
+    summaryDiv.textContent = `${tierText || "No joiners"} | Total Troops: ${totalTroops.toLocaleString()}`;
   }
-});
+}
+
 
 async function autoFillAndSaveRoster() {
   const playersUsed = new Set();
@@ -174,19 +190,20 @@ async function autoFillAndSaveRoster() {
 
   const locationMap = {};
 
-  // STEP 1: Collect captains manually selected
+  // Step 1: Collect captains manually assigned
   for (const loc of [...turrets, "Hub"]) {
     const rows = document.querySelectorAll(`.turretCheck[data-location="${loc}"]:checked`);
     const captains = Array.from(rows).filter(row =>
       row.closest("tr").querySelector(".captain:checked")
     ).map(row => {
       const tr = row.closest("tr");
-      const name = tr.children[0].querySelector("input").value;
-      const troopType = tr.children[2].querySelector("input").value;
-      const troopTier = tr.children[3].querySelector("input").value;
-      const march = +(tr.children[4].querySelector("input").value || 0);
-      const rally = +(tr.children[5].querySelector("input").value || 0);
-      return { name, troopType, troopTier, marchSize: march, rallySize: rally };
+      return {
+        name: tr.children[0].querySelector("input").value,
+        troopType: tr.children[2].querySelector("input").value,
+        troopTier: tr.children[3].querySelector("input").value,
+        marchSize: +(tr.children[4].querySelector("input").value || 0),
+        rallySize: +(tr.children[5].querySelector("input").value || 0),
+      };
     });
 
     if (captains.length > 0) {
@@ -197,7 +214,7 @@ async function autoFillAndSaveRoster() {
 
   if (!includeHub) delete locationMap.Hub;
 
-  // STEP 2: Group turrets by troop type
+  // Step 2: Group turrets by troop type
   const troopTypeGroups = {};
   for (const [loc, captain] of Object.entries(locationMap)) {
     const type = captain.troopType;
@@ -205,91 +222,84 @@ async function autoFillAndSaveRoster() {
     troopTypeGroups[type].push({ loc, captain });
   }
 
-  // STEP 3: For each troop type, distribute shared joiner pool
+  // Step 3: For each troop type, distribute joiners
   for (const [troopType, turretList] of Object.entries(troopTypeGroups)) {
-    const totalJoinersNeeded = turretList.length * 29;
-
-    // Shared eligible joiners
     const eligible = fullData.filter(p =>
       !playersUsed.has(p.name) &&
       p.troopType === troopType &&
       (p.shift === "Start" || p.shift === "Start till End")
     );
 
-    const t10plus = eligible.filter(p => {
-      const tier = +(p.troopTier?.replace("T", "") || 0);
-      return tier >= 10;
-    }).sort((a, b) => (+b.rallySize || 0) - (+a.rallySize || 0));
-
-    const t9 = eligible.filter(p => p.troopTier === "T9");
-
-    const joiners = [];
-    let needed = totalJoinersNeeded * 100000;
-
-    for (const p of t10plus) {
-      if (joiners.length >= totalJoinersNeeded) break;
-      const max = +p.marchSize || 0;
-      const target = Math.ceil(needed / (totalJoinersNeeded - joiners.length));
-      const send = Math.min(max, target);
-      joiners.push({ name: p.name, troopTier: p.troopTier, send });
-      playersUsed.add(p.name);
-      needed -= send;
-      if (needed <= 0) break;
+    const tierOrder = ["T13", "T12", "T11", "T10", "T9"];
+    const tierBuckets = Object.fromEntries(tierOrder.map(t => [t, []]));
+    for (const p of eligible) {
+      const tier = p.troopTier?.toUpperCase();
+      if (tierBuckets[tier]) tierBuckets[tier].push(p);
     }
+    tierOrder.forEach(t => tierBuckets[t].sort((a, b) => (+b.rallySize || 0) - (+a.rallySize || 0)));
 
-    if (needed > 0) {
-      for (const p of t9) {
-        if (joiners.length >= totalJoinersNeeded) break;
-        const send = Math.min(+p.marchSize || 0, 1000);
-        if (send > 0) {
-          joiners.push({ name: p.name, troopTier: p.troopTier, send });
-          playersUsed.add(p.name);
-          needed -= send;
+    const totalRally = turretList.reduce((sum, t) => sum + (t.captain.rallySize || 0), 0) || 1;
+    const turretTargets = turretList.map(t => ({
+      loc: t.loc,
+      captain: t.captain,
+      needed: Math.round(29 * turretList.length * ((t.captain.rallySize || 0) / totalRally)),
+      assigned: []
+    }));
+
+    // Even distribution of tiers
+    for (const tier of tierOrder) {
+      const pool = tierBuckets[tier];
+      let index = 0;
+      while (pool.length) {
+        const p = pool.shift();
+        let attempts = 0;
+        while (attempts < turretTargets.length) {
+          const turret = turretTargets[index % turretTargets.length];
+          if (turret.assigned.length < turret.needed) {
+            turret.assigned.push({
+              name: p.name,
+              troopTier: tier,
+              send: +p.marchSize || 0
+            });
+            playersUsed.add(p.name);
+            break;
+          }
+          index++;
+          attempts++;
         }
-        if (needed <= 0) break;
+        index++;
       }
     }
 
-    // Distribute joiners evenly across turrets with same type
-    turretList.forEach(({ loc, captain }, index) => {
+    // Save and display each turret
+    for (const turret of turretTargets) {
+      const loc = turret.loc;
+      const { captain, assigned } = turret;
       const capKey = loc.toLowerCase() + "-captain";
       const typeKey = loc.toLowerCase() + "-type";
       const joinerKey = loc.toLowerCase() + "-joiners";
 
       fields[capKey] = `${captain.name} - ${captain.marchSize}`;
       fields[typeKey] = troopType + "s";
+      fields[joinerKey] = assigned
+        .map(p => `${p.name} (${p.troopTier}) - ${p.send}`)
+        .join("\n");
 
-      if (loc === "Hub") {
-        fields[joinerKey] = "";
-        return;
+      const summaryDiv = document.getElementById(`summary-${loc.toLowerCase()}`);
+      if (summaryDiv) {
+        const tierCounts = {};
+        let total = 0;
+        for (const p of assigned) {
+          tierCounts[p.troopTier] = (tierCounts[p.troopTier] || 0) + 1;
+          total += p.send;
+        }
+        const lines = [`Total Troops: ${total.toLocaleString()}`];
+        for (const tier of tierOrder) {
+          if (tierCounts[tier]) lines.push(`${tier}: ${tierCounts[tier]}`);
+        }
+        summaryDiv.innerHTML = lines.join("<br>");
       }
-
-      const chunk = joiners.slice(index * 29, (index + 1) * 29);
-      fields[joinerKey] = chunk.map(p => `${p.name} (${p.troopTier}) - ${p.send}`).join("\n");
-
-// Compute summary
-const tierCounts = {};
-let total = 0;
-chunk.forEach(p => {
-  const tier = p.troopTier;
-  tierCounts[tier] = (tierCounts[tier] || 0) + 1;
-  total += p.send;
-});
-
-// Build readable summary
-const lines = [`Total Troops: ${total.toLocaleString()}`];
-for (const tier of ["T13", "T12", "T11", "T10", "T9"]) {
-  if (tierCounts[tier]) {
-    lines.push(`${tier}: ${tierCounts[tier]}`);
-  }
-}
-
-// Show on page
-const summaryDiv = document.getElementById(`summary-${loc.toLowerCase()}`);
-if (summaryDiv) {
-  summaryDiv.innerHTML = lines.join("<br>");
-}
-    });
+    }
   }
 
   try {
@@ -299,4 +309,6 @@ if (summaryDiv) {
     showToast("❌ Failed to save roster.");
     console.error(err);
   }
+
+updateTurretSummariesWithTotals();
 }

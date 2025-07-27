@@ -346,15 +346,6 @@ input.backup[type="checkbox"]  { accent-color: #ffff00; }
   cursor: pointer;
   font-size: 2rem;
 }
-.bg-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: #00000080
-  z-index: 0;
-}
 
 .turret-options input[type="checkbox"] {
   opacity: 0.4;
