@@ -355,3 +355,11 @@ input.backup[type="checkbox"]  { accent-color: #ffff00; }
   background: #00000080
   z-index: 0;
 }
+
+.turret-options input[type="checkbox"] {
+  opacity: 0.4;
+}
+
+.turret-options input[type="checkbox"]:checked {
+  opacity: 1;
+}

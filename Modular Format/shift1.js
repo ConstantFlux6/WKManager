@@ -169,11 +169,12 @@ autofillBtn.addEventListener("click", async () => {
 async function autoFillAndSaveRoster() {
   const playersUsed = new Set();
   const fields = {};
-
   const turrets = ["North", "South", "East", "West"];
+  const includeHub = document.getElementById("includeHub")?.checked ?? true;
+
   const locationMap = {};
 
-  // Get user-selected captains and troop types
+  // STEP 1: Collect captains manually selected
   for (const loc of [...turrets, "Hub"]) {
     const rows = document.querySelectorAll(`.turretCheck[data-location="${loc}"]:checked`);
     const captains = Array.from(rows).filter(row =>
@@ -189,28 +190,29 @@ async function autoFillAndSaveRoster() {
     });
 
     if (captains.length > 0) {
-      locationMap[loc] = captains[0]; // Only first captain per turret for now
+      locationMap[loc] = captains[0];
       playersUsed.add(captains[0].name);
     }
   }
 
+  if (!includeHub) delete locationMap.Hub;
+
+  // STEP 2: Group turrets by troop type
+  const troopTypeGroups = {};
   for (const [loc, captain] of Object.entries(locationMap)) {
-    const capKey = loc.toLowerCase() + "-captain";
-    const typeKey = loc.toLowerCase() + "-type";
-    const joinerKey = loc.toLowerCase() + "-joiners";
+    const type = captain.troopType;
+    if (!troopTypeGroups[type]) troopTypeGroups[type] = [];
+    troopTypeGroups[type].push({ loc, captain });
+  }
 
-    fields[capKey] = `${captain.name} - ${captain.marchSize}`;
-    fields[typeKey] = captain.troopType + "s";
+  // STEP 3: For each troop type, distribute shared joiner pool
+  for (const [troopType, turretList] of Object.entries(troopTypeGroups)) {
+    const totalJoinersNeeded = turretList.length * 29;
 
-    if (loc === "Hub") {
-      fields[joinerKey] = "";
-      continue;
-    }
-
-    // Filter eligible joiners
+    // Shared eligible joiners
     const eligible = fullData.filter(p =>
       !playersUsed.has(p.name) &&
-      p.troopType === captain.troopType &&
+      p.troopType === troopType &&
       (p.shift === "Start" || p.shift === "Start till End")
     );
 
@@ -222,13 +224,12 @@ async function autoFillAndSaveRoster() {
     const t9 = eligible.filter(p => p.troopTier === "T9");
 
     const joiners = [];
-    const maxJoiners = 29;
-    let needed = captain.rallySize;
+    let needed = totalJoinersNeeded * 100000;
 
     for (const p of t10plus) {
-      if (joiners.length >= maxJoiners) break;
+      if (joiners.length >= totalJoinersNeeded) break;
       const max = +p.marchSize || 0;
-      const target = Math.ceil(needed / (maxJoiners - joiners.length));
+      const target = Math.ceil(needed / (totalJoinersNeeded - joiners.length));
       const send = Math.min(max, target);
       joiners.push({ name: p.name, troopTier: p.troopTier, send });
       playersUsed.add(p.name);
@@ -238,7 +239,7 @@ async function autoFillAndSaveRoster() {
 
     if (needed > 0) {
       for (const p of t9) {
-        if (joiners.length >= maxJoiners) break;
+        if (joiners.length >= totalJoinersNeeded) break;
         const send = Math.min(+p.marchSize || 0, 1000);
         if (send > 0) {
           joiners.push({ name: p.name, troopTier: p.troopTier, send });
@@ -249,9 +250,23 @@ async function autoFillAndSaveRoster() {
       }
     }
 
-    fields[joinerKey] = joiners
-      .map(p => `${p.name} (${p.troopTier}) - ${p.send}`)
-      .join("\n");
+    // Distribute joiners evenly across turrets with same type
+    turretList.forEach(({ loc, captain }, index) => {
+      const capKey = loc.toLowerCase() + "-captain";
+      const typeKey = loc.toLowerCase() + "-type";
+      const joinerKey = loc.toLowerCase() + "-joiners";
+
+      fields[capKey] = `${captain.name} - ${captain.marchSize}`;
+      fields[typeKey] = troopType + "s";
+
+      if (loc === "Hub") {
+        fields[joinerKey] = "";
+        return;
+      }
+
+      const chunk = joiners.slice(index * 29, (index + 1) * 29);
+      fields[joinerKey] = chunk.map(p => `${p.name} (${p.troopTier}) - ${p.send}`).join("\n");
+    });
   }
 
   try {
