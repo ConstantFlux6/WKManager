@@ -266,6 +266,29 @@ async function autoFillAndSaveRoster() {
 
       const chunk = joiners.slice(index * 29, (index + 1) * 29);
       fields[joinerKey] = chunk.map(p => `${p.name} (${p.troopTier}) - ${p.send}`).join("\n");
+
+// Compute summary
+const tierCounts = {};
+let total = 0;
+chunk.forEach(p => {
+  const tier = p.troopTier;
+  tierCounts[tier] = (tierCounts[tier] || 0) + 1;
+  total += p.send;
+});
+
+// Build readable summary
+const lines = [`Total Troops: ${total.toLocaleString()}`];
+for (const tier of ["T13", "T12", "T11", "T10", "T9"]) {
+  if (tierCounts[tier]) {
+    lines.push(`${tier}: ${tierCounts[tier]}`);
+  }
+}
+
+// Show on page
+const summaryDiv = document.getElementById(`summary-${loc.toLowerCase()}`);
+if (summaryDiv) {
+  summaryDiv.innerHTML = lines.join("<br>");
+}
     });
   }
 

@@ -363,3 +363,10 @@ input.backup[type="checkbox"]  { accent-color: #ffff00; }
 .turret-options input[type="checkbox"]:checked {
   opacity: 1;
 }
+.turret-summary {
+  font-size: 0.85rem;
+  color: #ccc;
+  margin-top: -0.25rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
