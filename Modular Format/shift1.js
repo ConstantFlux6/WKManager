@@ -310,5 +310,4 @@ async function autoFillAndSaveRoster() {
     console.error(err);
   }
 
-updateTurretSummariesWithTotals();
 }
