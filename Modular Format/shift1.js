@@ -190,7 +190,7 @@ async function autoFillAndSaveRoster() {
 
   const locationMap = {};
 
-  // Step 1: Collect captains manually assigned
+  // Step 1: Collect manually selected captains
   for (const loc of [...turrets, "Hub"]) {
     const rows = document.querySelectorAll(`.turretCheck[data-location="${loc}"]:checked`);
     const captains = Array.from(rows).filter(row =>
@@ -222,7 +222,8 @@ async function autoFillAndSaveRoster() {
     troopTypeGroups[type].push({ loc, captain });
   }
 
-  // Step 3: For each troop type, distribute joiners
+  const tierOrder = ["T13", "T12", "T11", "T10", "T9"];
+
   for (const [troopType, turretList] of Object.entries(troopTypeGroups)) {
     const eligible = fullData.filter(p =>
       !playersUsed.has(p.name) &&
@@ -230,7 +231,7 @@ async function autoFillAndSaveRoster() {
       (p.shift === "Start" || p.shift === "Start till End")
     );
 
-    const tierOrder = ["T13", "T12", "T11", "T10", "T9"];
+    // Step 3: Sort players by tier
     const tierBuckets = Object.fromEntries(tierOrder.map(t => [t, []]));
     for (const p of eligible) {
       const tier = p.troopTier?.toUpperCase();
@@ -238,53 +239,66 @@ async function autoFillAndSaveRoster() {
     }
     tierOrder.forEach(t => tierBuckets[t].sort((a, b) => (+b.rallySize || 0) - (+a.rallySize || 0)));
 
-    const totalRally = turretList.reduce((sum, t) => sum + (t.captain.rallySize || 0), 0) || 1;
-    const turretTargets = turretList.map(t => ({
+    // Step 4: Round-robin assign players across turrets
+    const turretAssignments = turretList.map(t => ({
       loc: t.loc,
       captain: t.captain,
-      needed: Math.round(29 * turretList.length * ((t.captain.rallySize || 0) / totalRally)),
       assigned: []
     }));
 
-    // Even distribution of tiers
     for (const tier of tierOrder) {
       const pool = tierBuckets[tier];
-      let index = 0;
+      let i = 0;
       while (pool.length) {
-        const p = pool.shift();
-        let attempts = 0;
-        while (attempts < turretTargets.length) {
-          const turret = turretTargets[index % turretTargets.length];
-          if (turret.assigned.length < turret.needed) {
-            turret.assigned.push({
-              name: p.name,
+        const player = pool.shift();
+        let assigned = false;
+        for (let attempts = 0; attempts < turretAssignments.length; attempts++) {
+          const target = turretAssignments[i % turretAssignments.length];
+          if (!target.assigned.find(p => p.name === player.name)) {
+            target.assigned.push({
+              name: player.name,
               troopTier: tier,
-              send: +p.marchSize || 0
+              rawPlayer: player
             });
-            playersUsed.add(p.name);
+            playersUsed.add(player.name);
+            assigned = true;
             break;
           }
-          index++;
-          attempts++;
+          i++;
         }
-        index++;
+        if (!assigned) break;
+        i++;
       }
     }
 
-    // Save and display each turret
-    for (const turret of turretTargets) {
-      const loc = turret.loc;
-      const { captain, assigned } = turret;
+    // Step 5: Assign troop counts per turret
+    for (const turret of turretAssignments) {
+      const { loc, captain, assigned } = turret;
+      const rallyCap = captain.rallySize || 0;
+      const t9s = assigned.filter(p => p.troopTier === "T9");
+      const others = assigned.filter(p => p.troopTier !== "T9");
+
+      const fixedT9Total = t9s.length * 1000;
+      const remaining = Math.max(0, rallyCap - fixedT9Total);
+      const perOther = others.length > 0 ? Math.floor(remaining / others.length) : 0;
+
+      // Set final send values
+      assigned.forEach(p => {
+        p.send = p.troopTier === "T9" ? 1000 : perOther;
+      });
+
+      // Output fields
       const capKey = loc.toLowerCase() + "-captain";
       const typeKey = loc.toLowerCase() + "-type";
       const joinerKey = loc.toLowerCase() + "-joiners";
 
       fields[capKey] = `${captain.name} - ${captain.marchSize}`;
       fields[typeKey] = troopType + "s";
-      fields[joinerKey] = assigned
-        .map(p => `${p.name} (${p.troopTier}) - ${p.send}`)
-        .join("\n");
+      fields[joinerKey] = assigned.map(p =>
+        `${p.name} (${p.troopTier}) - ${p.send}`
+      ).join("\n");
 
+      // Summary
       const summaryDiv = document.getElementById(`summary-${loc.toLowerCase()}`);
       if (summaryDiv) {
         const tierCounts = {};
@@ -293,11 +307,11 @@ async function autoFillAndSaveRoster() {
           tierCounts[p.troopTier] = (tierCounts[p.troopTier] || 0) + 1;
           total += p.send;
         }
-        const lines = [`Total Troops: ${total.toLocaleString()}`];
-        for (const tier of tierOrder) {
-          if (tierCounts[tier]) lines.push(`${tier}: ${tierCounts[tier]}`);
+        const summaryLines = [`Total Troops: ${total.toLocaleString()}`];
+        for (const t of tierOrder) {
+          if (tierCounts[t]) summaryLines.push(`${t}: ${tierCounts[t]}`);
         }
-        summaryDiv.innerHTML = lines.join("<br>");
+        summaryDiv.innerHTML = summaryLines.join("<br>");
       }
     }
   }
@@ -310,4 +324,5 @@ async function autoFillAndSaveRoster() {
     console.error(err);
   }
 
+  updateTurretSummariesWithTotals();
 }
